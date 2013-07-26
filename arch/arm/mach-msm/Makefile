@@ -307,6 +307,8 @@ else
 obj-$(CONFIG_ARCH_MSM8960) += acpuclock-8960.o
 endif
 
+obj-$(CONFIG_HAS_MACH_MEMUTILS) += memutils/
+
 obj-$(CONFIG_ARCH_RANDOM) += early_random.o
 
 obj-$(CONFIG_ARCH_MSM8960) += memory_topology.o
