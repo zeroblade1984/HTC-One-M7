@@ -43,6 +43,7 @@
 
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+#include <linux/ratelimit.h>
 #ifdef CONFIG_EXT4_E2FSCK_RECOVER
 #include <linux/reboot.h>
 #endif
@@ -640,7 +641,7 @@ void ext4_msg(struct super_block *sb, const char *prefix, const char *fmt, ...)
 	va_start(args, fmt);
 	vaf.fmt = fmt;
 	vaf.va = &args;
-	printk("%sEXT4-fs (%s): %pV\n", prefix, sb->s_id, &vaf);
+	printk_ratelimited("%sEXT4-fs (%s): %pV\n", prefix, sb->s_id, &vaf);
 	va_end(args);
 }
 
