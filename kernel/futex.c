@@ -418,7 +418,8 @@ void exit_pi_state_list(struct task_struct *curr)
 
 static int
 lookup_pi_state(u32 uval, struct futex_hash_bucket *hb,
-		union futex_key *key, struct futex_pi_state **ps)
+		union futex_key *key, struct futex_pi_state **ps,
+		struct task_struct *task)
 {
 	struct futex_pi_state *pi_state = NULL;
 	struct futex_q *this, *next;
@@ -440,6 +441,17 @@ lookup_pi_state(u32 uval, struct futex_hash_bucket *hb,
 				if (pid != task_pid_vnr(pi_state->owner))
 					return -EINVAL;
 			}
+
+			/*
+			 * Protect against a corrupted uval. If uval
+			 * is 0x80000000 then pid is 0 and the waiter
+			 * bit is set. So the deadlock check in the
+			 * calling code has failed and we did not fall
+			 * into the check above due to !pid.
+			 */
+
+			if (task && pi_state->owner == task)
+				return -EDEADLK;
 
 			atomic_inc(&pi_state->refcount);
 			*ps = pi_state;
@@ -530,7 +542,7 @@ retry:
 	if (unlikely(lock_taken))
 		return 1;
 
-	ret = lookup_pi_state(uval, hb, key, ps);
+	ret = lookup_pi_state(uval, hb, key, ps, task);
 
 	if (unlikely(ret)) {
 		switch (ret) {
@@ -830,7 +842,7 @@ static int futex_proxy_trylock_atomic(u32 __user *pifutex,
 {
 	struct futex_q *top_waiter = NULL;
 	u32 curval;
-	int ret;
+	int ret, vpid;
 
 	if (get_futex_value_locked(&curval, pifutex))
 		return -EFAULT;
@@ -845,11 +857,13 @@ static int futex_proxy_trylock_atomic(u32 __user *pifutex,
 	if (!match_futex(top_waiter->requeue_pi_key, key2))
 		return -EINVAL;
 
+	vpid = task_pid_vnr(top_waiter->task);
 	ret = futex_lock_pi_atomic(pifutex, hb2, key2, ps, top_waiter->task,
 				   set_waiters);
-	if (ret == 1)
+	if (ret == 1) {
 		requeue_pi_wake_futex(top_waiter, key2, hb2);
-
+		return vpid;
+	}
 	return ret;
 }
 
@@ -863,7 +877,6 @@ static int futex_requeue(u32 __user *uaddr1, unsigned int flags,
 	struct futex_hash_bucket *hb1, *hb2;
 	struct plist_head *head1;
 	struct futex_q *this, *next;
-	u32 curval2;
 
 	if (requeue_pi) {
 		if (refill_pi_state_cache())
@@ -921,14 +934,11 @@ retry_private:
 		ret = futex_proxy_trylock_atomic(uaddr2, hb1, hb2, &key1,
 						 &key2, &pi_state, nr_requeue);
 
-		if (ret == 1) {
+		if (ret > 1) {
 			WARN_ON(pi_state);
 			drop_count++;
 			task_count++;
-			ret = get_futex_value_locked(&curval2, uaddr2);
-			if (!ret)
-				ret = lookup_pi_state(curval2, hb2, &key2,
-						      &pi_state);
+			ret = lookup_pi_state(ret, hb2, &key2, &pi_state, NULL);
 		}
 
 		switch (ret) {
