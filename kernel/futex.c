@@ -454,6 +454,11 @@ lookup_pi_state(u32 uval, struct futex_hash_bucket *hb,
 	if (!p)
 		return -ESRCH;
 
+	if (!p->mm) {
+		put_task_struct(p);
+		return -EPERM;
+	}
+
 	raw_spin_lock_irq(&p->pi_lock);
 	if (unlikely(p->flags & PF_EXITING)) {
 		int ret = (p->flags & PF_EXITPIDONE) ? -ESRCH : -EAGAIN;
