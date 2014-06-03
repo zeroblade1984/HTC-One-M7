@@ -520,8 +520,9 @@ retry:
 	if ((unlikely((curval & FUTEX_TID_MASK) == vpid)))
 		return -EDEADLK;
 
-	if (unlikely(!curval))
-		return 1;
+	if (unlikely(!curval)) {
+		return futex_top_waiter(hb, key) ? -EINVAL : 1;
+	}
 
 	uval = curval;
 
