@@ -179,7 +179,8 @@ extern void ondemand_boost_cpu(int boost);
 
 
 #define CPUFREQ_RELATION_L 0  
-#define CPUFREQ_RELATION_H 1  
+#define CPUFREQ_RELATION_H 1
+#define CPUFREQ_RELATION_C 2
 
 struct freq_attr;
 
