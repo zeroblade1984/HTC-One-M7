@@ -375,6 +375,7 @@ static ssize_t tstats_write(struct file *file, const char __user *buf,
 	return count;
 }
 
+#ifdef CONFIG_DEBUG_KERNEL
 void htc_timer_stats_onoff(char onoff)
 {
 	mutex_lock(&show_mutex);
@@ -399,6 +400,7 @@ void htc_timer_stats_onoff(char onoff)
 	}
 	mutex_unlock(&show_mutex);
 }
+#endif
 
 static int tstats_open(struct inode *inode, struct file *filp)
 {
