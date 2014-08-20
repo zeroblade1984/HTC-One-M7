@@ -172,12 +172,6 @@ config CPU_FREQ_GOV_ONDEMAND_2_PHASE
 	help
 	  '2-phase' - This driver adds a new algo to save power
 
-config CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
-	bool "'multi-phase' power-efficiency ondemand algorithm"
-	depends on CPU_FREQ_GOV_ONDEMAND
-	help
-	  'multi-phase' - This driver adds a new algo to save power
-
 config CPU_FREQ_GOV_INTERACTIVE
 	tristate "'interactive' cpufreq policy governor"
 	help

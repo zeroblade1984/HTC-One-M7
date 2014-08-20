@@ -45,7 +45,7 @@ static DEFINE_SPINLOCK(cpufreq_driver_lock);
 
 static DEFINE_PER_CPU(int, cpufreq_policy_cpu);
 static DEFINE_PER_CPU(struct rw_semaphore, cpu_policy_rwsem);
-DEFINE_PER_CPU(int, cpufreq_init_done);
+static DEFINE_PER_CPU(int, cpufreq_init_done);
 
 #define lock_policy_rwsem(mode, cpu)					\
 int lock_policy_rwsem_##mode						\
