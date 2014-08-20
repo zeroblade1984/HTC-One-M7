@@ -34,7 +34,9 @@
 #define UPDATE_BUSY_VAL		1000000
 #define UPDATE_BUSY		50
 
+#ifdef CONFIG_HTC_PNPMGR
 extern void set_gpu_clk(unsigned int);
+#endif
 
 struct clk_pair {
 	const char *name;
