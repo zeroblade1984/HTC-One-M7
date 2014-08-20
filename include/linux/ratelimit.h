@@ -81,4 +81,26 @@ extern int ___ratelimit(struct ratelimit_state *rs, const char *func);
 
 #endif
 
+/* Lets backport from 3.5.y mainline dev related message printing */
+#define IF_DEV_RATELIMITED						\
+	static DEFINE_RATELIMIT_STATE(_rs,				\
+				      DEFAULT_RATELIMIT_INTERVAL,	\
+				      DEFAULT_RATELIMIT_BURST);		\
+	if (__ratelimit(&_rs))
+
+#define dev_emerg_ratelimited(dev, fmt, ...)				\
+	do { IF_DEV_RATELIMITED dev_printk(KERN_EMERG, dev, fmt, ##__VA_ARGS__); } while (0)
+#define dev_alert_ratelimited(dev, fmt, ...)				\
+	do { IF_DEV_RATELIMITED dev_printk(KERN_ALERT, dev, fmt, ##__VA_ARGS__); } while (0)
+#define dev_crit_ratelimited(dev, fmt, ...)				\
+	do { IF_DEV_RATELIMITED dev_printk(KERN_CRIT, dev, fmt, ##__VA_ARGS__); } while (0)
+#define dev_err_ratelimited(dev, fmt, ...)				\
+	do { IF_DEV_RATELIMITED dev_printk(KERN_ERR, dev, fmt, ##__VA_ARGS__); } while (0)
+#define dev_warn_ratelimited(dev, fmt, ...)				\
+	do { IF_DEV_RATELIMITED dev_printk(KERN_WARNING, dev, fmt, ##__VA_ARGS__); } while (0)
+#define dev_notice_ratelimited(dev, fmt, ...)				\
+	do { IF_DEV_RATELIMITED dev_printk(KERN_NOTICE, dev, fmt, ##__VA_ARGS__); } while (0)
+#define dev_info_ratelimited(dev, fmt, ...)				\
+	do { IF_DEV_RATELIMITED dev_printk(KERN_INFO, dev, fmt, ##__VA_ARGS__); } while (0)
+
 #endif 
