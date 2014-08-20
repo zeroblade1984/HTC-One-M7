@@ -237,12 +237,6 @@ enum {
        SX150X_EPM,
 };
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
-int set_two_phase_freq(int cpufreq);
-#endif
-
-int set_input_event_min_freq_by_cpu(int cpu_nr, int cpufreq);
-
 #ifdef CONFIG_KERNEL_PMEM_EBI_REGION
 static unsigned pmem_kernel_ebi1_size = MSM_PMEM_KERNEL_EBI1_SIZE;
 static int __init pmem_kernel_ebi1_size_setup(char *p)
@@ -5750,17 +5744,6 @@ static void __init m7_cdp_init(void)
 	m7_init_cam();
 #endif
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
-        if(!cpu_is_krait_v1())
-                set_two_phase_freq(1134000);
-#endif
-	set_input_event_min_freq_by_cpu(1, 1134000);
-	set_input_event_min_freq_by_cpu(2, 1026000);
-	set_input_event_min_freq_by_cpu(3, 810000);
-	set_input_event_min_freq_by_cpu(4, 810000);
-
-	
-	
 	if (!(board_mfg_mode() == 6 || board_mfg_mode() == 7))
 		m7_add_usb_devices();
 }
