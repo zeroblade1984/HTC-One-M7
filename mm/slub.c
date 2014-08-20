@@ -2094,7 +2094,7 @@ EXPORT_SYMBOL(kmem_cache_free);
 
 
 static int slub_min_order;
-static int slub_max_order = PAGE_ALLOC_COSTLY_ORDER;
+static int slub_max_orderR;
 static int slub_min_objects;
 
 static int slub_nomerge;
@@ -3166,9 +3166,9 @@ struct kmem_cache *kmem_cache_create(const char *name, size_t size,
 			}
 			return s;
 		}
-		kfree(n);
 		kfree(s);
 	}
+	kfree(n);
 err:
 	up_write(&slub_lock);
 
