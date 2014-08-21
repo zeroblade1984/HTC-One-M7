@@ -22,6 +22,9 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu.h>
 #include <linux/regulator/consumer.h>
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+#include <linux/debugfs.h>
+#endif
 
 #include <asm/mach-types.h>
 #include <asm/cpu.h>
@@ -37,6 +40,12 @@
 #include "acpuclock.h"
 #include "acpuclock-krait.h"
 #include "avs.h"
+
+#ifdef CONFIG_CPU_OVERCLOCK
+#define FREQ_TABLE_SIZE 42
+#else
+#define FREQ_TABLE_SIZE	35
+#endif
 
 #define CPU_FOOT_PRINT_MAGIC				0xACBDFE00
 static void set_acpuclk_foot_print(unsigned cpu, unsigned state)
@@ -272,18 +281,6 @@ static int increase_vdd(int cpu, struct vdd_data *data,
 		sc->vreg[VREG_DIG].cur_vdd = data->vdd_dig;
 	}
 
-	
-	if (data->ua_core > sc->vreg[VREG_CORE].cur_ua) {
-		rc = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
-						data->ua_core);
-		if (rc < 0) {
-			dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
-				sc->vreg[VREG_CORE].name, rc);
-			return rc;
-		}
-		sc->vreg[VREG_CORE].cur_ua = data->ua_core;
-	}
-
 	if (data->vdd_core > sc->vreg[VREG_CORE].cur_vdd
 			&& reason != SETRATE_HOTPLUG) {
 		rc = regulator_set_voltage(sc->vreg[VREG_CORE].reg,
@@ -319,19 +316,6 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 		sc->vreg[VREG_CORE].cur_vdd = data->vdd_core;
 	}
 
-	
-	if (data->ua_core < sc->vreg[VREG_CORE].cur_ua) {
-		ret = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
-						data->ua_core);
-		if (ret < 0) {
-			dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
-				sc->vreg[VREG_CORE].name, ret);
-			return;
-		}
-		sc->vreg[VREG_CORE].cur_ua = data->ua_core;
-	}
-
-	
 	if (data->vdd_dig < sc->vreg[VREG_DIG].cur_vdd) {
 		ret = rpm_regulator_set_voltage(sc->vreg[VREG_DIG].rpm_reg,
 				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd);
@@ -390,11 +374,31 @@ static int calculate_vdd_dig(const struct acpu_level *tgt)
 }
 
 static bool enable_boost = true;
-module_param_named(boost, enable_boost, bool, S_IRUGO | S_IWUSR);
+module_param_named(boost, enable_boost, bool, 0755);
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+unsigned int lower_uV = 0, higher_uV = 0;
+module_param(lower_uV, uint, 0755);
+module_param(higher_uV, uint, 0755);
+static unsigned long higher_khz_thres = 1242000;
+#define MAX_UV 	175000
+#endif
 
 static int calculate_vdd_core(const struct acpu_level *tgt)
 {
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+	unsigned int under_uV;
+
+	if (lower_uV > MAX_UV)
+		lower_uV = MAX_UV;
+	else if (higher_uV > MAX_UV)
+		higher_uV = MAX_UV;
+
+	under_uV = (tgt->speed.khz >= higher_khz_thres) ? higher_uV : lower_uV;
+
+	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0) - under_uV;
+#else
 	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0);
+#endif
 }
 
 static DEFINE_MUTEX(l2_regulator_lock);
@@ -481,7 +485,6 @@ static int acpuclk_krait_set_rate(int cpu, unsigned long rate,
 	vdd_data.vdd_mem  = calculate_vdd_mem(tgt);
 	vdd_data.vdd_dig  = calculate_vdd_dig(tgt);
 	vdd_data.vdd_core = calculate_vdd_core(tgt);
-	vdd_data.ua_core = tgt->ua_core;
 
 	
 	if (reason == SETRATE_CPUFREQ && drv.scalable[cpu].avs_enabled) {
@@ -604,7 +607,6 @@ static void __init hfpll_init(struct scalable *sc,
 
 	
 	hfpll_set_rate(sc, tgt_s);
-	hfpll_enable(sc, false);
 }
 
 static int __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
@@ -770,6 +772,8 @@ static int __cpuinit init_clock_sources(struct scalable *sc,
 	set_l2_indirect_reg(sc->l2cpmr_iaddr, regval);
 
 	
+	if (tgt_s->src == HFPLL)
+		hfpll_enable(sc, false);
 	set_pri_clk_src(sc, tgt_s->pri_src_sel);
 	sc->cur_speed = tgt_s;
 
@@ -846,7 +850,7 @@ static int __cpuinit per_cpu_init(int cpu)
 			ret = -ENODEV;
 			goto err_table;
 		}
-		dev_dbg(drv.dev, "CPU%d is running at an unknown rate. Defaulting to %lu KHz.\n",
+		dev_warn(drv.dev, "CPU%d is running at an unknown rate. Defaulting to %lu KHz.\n",
 			cpu, acpu_level->speed.khz);
 	} else {
 		dev_dbg(drv.dev, "CPU%d is running at %lu KHz\n", cpu,
@@ -892,16 +896,17 @@ static void __init bus_init(const struct l2_level *l2_level)
 }
 
 #ifdef CONFIG_CPU_FREQ_MSM
-static struct cpufreq_frequency_table freq_table[NR_CPUS][35];
+static struct cpufreq_frequency_table freq_table[NR_CPUS][FREQ_TABLE_SIZE];
 
 static void __init cpufreq_table_init(void)
 {
 	int cpu;
+	int freq_cnt = 0;
 
 	for_each_possible_cpu(cpu) {
-		int i, freq_cnt = 0;
+		int i;
 		
-		for (i = 0; drv.acpu_freq_tbl[i].speed.khz != 0
+		for (i = 0, freq_cnt = 0; drv.acpu_freq_tbl[i].speed.khz != 0
 				&& freq_cnt < ARRAY_SIZE(*freq_table); i++) {
 			if (drv.acpu_freq_tbl[i].use_for_scaling) {
 				freq_table[cpu][freq_cnt].index = freq_cnt;
@@ -916,12 +921,11 @@ static void __init cpufreq_table_init(void)
 		freq_table[cpu][freq_cnt].index = freq_cnt;
 		freq_table[cpu][freq_cnt].frequency = CPUFREQ_TABLE_END;
 
-		dev_info(drv.dev, "CPU%d: %d frequencies supported\n",
-			cpu, freq_cnt);
-
 		
 		cpufreq_frequency_table_get_attr(freq_table[cpu], cpu);
 	}
+
+	dev_info(drv.dev, "CPU Frequencies Supported: %d\n", freq_cnt);
 }
 #else
 static void __init cpufreq_table_init(void) {}
@@ -1151,7 +1155,7 @@ static void __init hw_init(void)
 	l2_level = find_cur_l2_level();
 	if (!l2_level) {
 		l2_level = drv.l2_freq_tbl;
-		dev_dbg(drv.dev, "L2 is running at an unknown rate. Defaulting to %lu KHz.\n",
+		dev_warn(drv.dev, "L2 is running at an unknown rate. Defaulting to %lu KHz.\n",
 			l2_level->speed.khz);
 	} else {
 		dev_dbg(drv.dev, "L2 is running at %lu KHz\n",
@@ -1169,6 +1173,64 @@ static void __init hw_init(void)
 	bus_init(l2_level);
 }
 
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+#define VDD_MAX 	1300000
+#define VDD_MIN 	800000
+static int acpu_table_show(struct seq_file *m, void *unused)
+{
+	const struct acpu_level *level;
+	int under_uV, final_uV;
+
+	/* Print Headers */
+	seq_printf(m, "CPU(MHz)  VDD(uV)\n");
+
+	for (level = drv.acpu_freq_tbl; level->speed.khz != 0; level++) {
+		if (!level->use_for_scaling)
+			continue;
+
+		/* Print CPU speed information */
+		seq_printf(m, "%7luMHz  ", level->speed.khz / 1000);
+
+		under_uV = (level->speed.khz >= higher_khz_thres) ? higher_uV : lower_uV;
+		final_uV = level->vdd_core + (enable_boost ? drv.boost_uv : 0) - under_uV;
+
+		if (final_uV > VDD_MAX)
+			final_uV = VDD_MAX;
+		else if (final_uV < VDD_MIN)
+			final_uV = VDD_MIN;
+
+		/* Print core voltage final information */
+		seq_printf(m, "%10duV\n", final_uV);
+
+	}
+
+	return 0;
+}
+
+static int acpu_table_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, acpu_table_show, inode->i_private);
+}
+
+static const struct file_operations acpu_table_fops = {
+	.open		= acpu_table_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
+
+void __init krait_uv(void) {
+	static struct dentry *base_dir;
+
+	base_dir = debugfs_create_dir("krait_uv_info", NULL);
+	if (!base_dir)
+		return;
+
+	debugfs_create_file("acpu_table", S_IRUGO, base_dir, NULL,
+				&acpu_table_fops);
+}
+#endif
+
 int __init acpuclk_krait_init(struct device *dev,
 			      const struct acpuclk_krait_params *params)
 {
@@ -1180,6 +1242,8 @@ int __init acpuclk_krait_init(struct device *dev,
 	register_hotcpu_notifier(&acpuclk_cpu_notifier);
 
 	acpuclk_krait_debug_init(&drv);
-
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+	krait_uv();
+#endif
 	return 0;
 }
