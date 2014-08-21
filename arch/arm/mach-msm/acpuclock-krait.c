@@ -281,6 +281,18 @@ static int increase_vdd(int cpu, struct vdd_data *data,
 		sc->vreg[VREG_DIG].cur_vdd = data->vdd_dig;
 	}
 
+	
+	if (data->ua_core > sc->vreg[VREG_CORE].cur_ua) {
+		rc = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
+						data->ua_core);
+		if (rc < 0) {
+			dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
+				sc->vreg[VREG_CORE].name, rc);
+			return rc;
+		}
+		sc->vreg[VREG_CORE].cur_ua = data->ua_core;
+	}
+
 	if (data->vdd_core > sc->vreg[VREG_CORE].cur_vdd
 			&& reason != SETRATE_HOTPLUG) {
 		rc = regulator_set_voltage(sc->vreg[VREG_CORE].reg,
@@ -316,6 +328,19 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 		sc->vreg[VREG_CORE].cur_vdd = data->vdd_core;
 	}
 
+	
+	if (data->ua_core < sc->vreg[VREG_CORE].cur_ua) {
+		ret = regulator_set_optimum_mode(sc->vreg[VREG_CORE].reg,
+						data->ua_core);
+		if (ret < 0) {
+			dev_err(drv.dev, "regulator_set_optimum_mode(%s) failed (%d)\n",
+				sc->vreg[VREG_CORE].name, ret);
+			return;
+		}
+		sc->vreg[VREG_CORE].cur_ua = data->ua_core;
+	}
+
+	
 	if (data->vdd_dig < sc->vreg[VREG_DIG].cur_vdd) {
 		ret = rpm_regulator_set_voltage(sc->vreg[VREG_DIG].rpm_reg,
 				data->vdd_dig, sc->vreg[VREG_DIG].max_vdd);
@@ -485,6 +510,7 @@ static int acpuclk_krait_set_rate(int cpu, unsigned long rate,
 	vdd_data.vdd_mem  = calculate_vdd_mem(tgt);
 	vdd_data.vdd_dig  = calculate_vdd_dig(tgt);
 	vdd_data.vdd_core = calculate_vdd_core(tgt);
+	vdd_data.ua_core = tgt->ua_core;
 
 	
 	if (reason == SETRATE_CPUFREQ && drv.scalable[cpu].avs_enabled) {
@@ -607,6 +633,7 @@ static void __init hfpll_init(struct scalable *sc,
 
 	
 	hfpll_set_rate(sc, tgt_s);
+	hfpll_enable(sc, false);
 }
 
 static int __cpuinit rpm_regulator_init(struct scalable *sc, enum vregs vreg,
@@ -772,8 +799,6 @@ static int __cpuinit init_clock_sources(struct scalable *sc,
 	set_l2_indirect_reg(sc->l2cpmr_iaddr, regval);
 
 	
-	if (tgt_s->src == HFPLL)
-		hfpll_enable(sc, false);
 	set_pri_clk_src(sc, tgt_s->pri_src_sel);
 	sc->cur_speed = tgt_s;
 
