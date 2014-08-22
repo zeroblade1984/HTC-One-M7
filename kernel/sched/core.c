@@ -3869,6 +3869,11 @@ static void migrate_tasks(unsigned int dead_cpu)
 		if (rq->nr_running == 1)
 			break;
 
+		if ((rq->cfs.nr_running == 0) && (rq->rt.rt_nr_running == 0)) {
+			requeue_rt_rq_tasks(rq);
+			continue;
+		}
+
 		next = pick_next_task(rq);
 		BUG_ON(!next);
 		next->sched_class->put_prev_task(rq, next);
@@ -5398,9 +5403,6 @@ void __init sched_init_smp(void)
 
 	hotcpu_notifier(cpuset_cpu_active, CPU_PRI_CPUSET_ACTIVE);
 	hotcpu_notifier(cpuset_cpu_inactive, CPU_PRI_CPUSET_INACTIVE);
-
-	
-	hotcpu_notifier(update_runtime, 0);
 
 	init_hrtick();
 
