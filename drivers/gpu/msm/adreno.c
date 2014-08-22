@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -481,15 +481,13 @@ static void adreno_cleanup_pt(struct kgsl_device *device,
 
 	kgsl_mmu_unmap(pagetable, &device->memstore);
 
-	kgsl_mmu_unmap(pagetable, &adreno_dev->pwron_fixup);
-
 	kgsl_mmu_unmap(pagetable, &device->mmu.setstate_memory);
 }
 
 static int adreno_setup_pt(struct kgsl_device *device,
 			struct kgsl_pagetable *pagetable)
 {
-	int result;
+	int result = 0;
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 
@@ -505,20 +503,13 @@ static int adreno_setup_pt(struct kgsl_device *device,
 	if (result)
 		goto unmap_memptrs_desc;
 
-	result = kgsl_mmu_map_global(pagetable, &adreno_dev->pwron_fixup);
-	if (result)
-		goto unmap_memstore_desc;
-
 	result = kgsl_mmu_map_global(pagetable, &device->mmu.setstate_memory);
 	if (result)
-		goto unmap_pwron_fixup_desc;
+		goto unmap_memstore_desc;
 
 	device->mh.mpu_range = device->mmu.setstate_memory.gpuaddr +
 				device->mmu.setstate_memory.size;
 	return result;
-
-unmap_pwron_fixup_desc:
-	kgsl_mmu_unmap(pagetable, &adreno_dev->pwron_fixup);
 
 unmap_memstore_desc:
 	kgsl_mmu_unmap(pagetable, &device->memstore);
@@ -546,9 +537,7 @@ static void adreno_iommu_setstate(struct kgsl_device *device,
 					uint32_t flags)
 {
 	unsigned int pt_val, reg_pt_val;
-	unsigned int link[250];
-	unsigned int *cmds = &link[0];
-	int sizedwords = 0;
+	unsigned int *link = NULL, *cmds;
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	int num_iommu_units, i;
 	struct kgsl_context *context;
@@ -564,6 +553,12 @@ static void adreno_iommu_setstate(struct kgsl_device *device,
 	if (context == NULL)
 		return;
 	adreno_ctx = context->devctxt;
+
+	link = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (link == NULL)
+		goto done;
+
+	cmds = link;
 
 	if (kgsl_mmu_enable_clk(&device->mmu,
 				KGSL_IOMMU_CONTEXT_USER))
@@ -651,24 +646,23 @@ static void adreno_iommu_setstate(struct kgsl_device *device,
 
 	cmds += adreno_add_idle_cmds(adreno_dev, cmds);
 
-	sizedwords += (cmds - &link[0]);
-	if (sizedwords) {
+	if ((unsigned int) (cmds - link)) {
 		
 		*cmds++ = cp_type3_packet(CP_INVALIDATE_STATE, 1);
 		*cmds++ = 0x7fff;
-		sizedwords += 2;
 		adreno_ringbuffer_issuecmds(device, adreno_ctx,
 			KGSL_CMD_FLAGS_PMODE,
-			&link[0], sizedwords);
+			link, (unsigned int)(cmds - link));
 		kgsl_mmu_disable_clk_on_ts(&device->mmu,
 				adreno_dev->ringbuffer.global_ts, true);
 	}
 
-	if (sizedwords > (sizeof(link)/sizeof(unsigned int))) {
+	if ((unsigned int) (cmds - link) > (PAGE_SIZE / sizeof(unsigned int))) {
 		KGSL_DRV_ERR(device, "Temp command buffer overflow\n");
 		BUG();
 	}
 done:
+	kfree(link);
 	kgsl_context_put(context);
 }
 
@@ -1478,11 +1472,6 @@ static int adreno_start(struct kgsl_device *device)
 
 	
 	kgsl_pwrctrl_enable(device);
-
-	
-
-	
-	set_bit(ADRENO_DEVICE_PWRON, &adreno_dev->priv);
 
 	
 	if (adreno_is_a2xx(adreno_dev)) {
@@ -2918,9 +2907,6 @@ struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
 	if (kgsl_gpuaddr_in_memdesc(&device->memstore, gpuaddr, size))
 		return &device->memstore;
 
-	if (kgsl_gpuaddr_in_memdesc(&adreno_dev->pwron_fixup, gpuaddr, size))
-		return &adreno_dev->pwron_fixup;
-
 	if (kgsl_gpuaddr_in_memdesc(&device->mmu.setstate_memory, gpuaddr,
 					size))
 		return &device->mmu.setstate_memory;
@@ -3185,6 +3171,9 @@ unsigned int adreno_ft_detect(struct kgsl_device *device,
 				(kgsl_readtimestamp(device, context,
 				KGSL_TIMESTAMP_RETIRED) + 1),
 				curr_global_ts + 1);
+			kgsl_context_put(context);
+			context = NULL;
+			curr_context = NULL;
 			return 1;
 		}
 
@@ -3220,6 +3209,8 @@ unsigned int adreno_ft_detect(struct kgsl_device *device,
 						curr_context->ib_gpu_time_used =
 								0;
 						kgsl_context_put(context);
+						context = NULL;
+						curr_context = NULL;
 						return 1;
 					}
 				}

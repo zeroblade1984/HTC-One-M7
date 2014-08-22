@@ -121,8 +121,10 @@ static struct kset *htc_batt_kset;
 
 #define BATT_REMOVED_SHUTDOWN_DELAY_MS (50)
 #define BATT_CRITICAL_VOL_SHUTDOWN_DELAY_MS (1000)
+#define BATT_QB_MODE_REAL_POWEROFF_DELAY_MS (5000)
 static void shutdown_worker(struct work_struct *work);
 struct delayed_work shutdown_work;
+static void batt_qb_mode_pwr_consumption_check(unsigned long cur_jiffies);
 
 #define BATT_CRITICAL_LOW_VOLTAGE		(3000)
 #define VOL_ALARM_RESUME_AFTER_LEVEL		(5)
@@ -140,6 +142,7 @@ static int ac_suspend_flag;
 #endif
 static int htc_ext_5v_output_now;
 static int htc_ext_5v_output_old;
+static bool qb_mode_enter = false;
 
 static int latest_chg_src = CHARGER_BATTERY;
 
@@ -162,6 +165,7 @@ struct htc_battery_info {
 	int overload_vol_thr_mv;
 	int overload_curr_thr_ma;
 	int smooth_chg_full_delay_min;
+	int decreased_batt_level_check;
 	struct kobject batt_timer_kobj;
 	struct kobject batt_cable_kobj;
 
@@ -231,6 +235,18 @@ struct max_level_by_current_ma {
 	int threshold_ma;
 	int level_boundary;
 };
+
+struct dec_level_by_current_ua {
+	int threshold_ua;
+	int dec_level;
+};
+static struct dec_level_by_current_ua dec_level_curr_table[] = {
+							{900000, 2},
+							{600000, 4},
+							{0, 6},
+};
+
+static const int DEC_LEVEL_CURR_TABLE_SIZE = sizeof(dec_level_curr_table) / sizeof (dec_level_curr_table[0]);
 
 #ifdef CONFIG_DUTY_CYCLE_LIMIT
 enum {
@@ -385,6 +401,14 @@ int htc_gauge_event_notify(enum htc_gauge_event event)
 	case HTC_GAUGE_EVENT_EOC_STOP_CHG:
 		sw_stimer_counter = 0;
 		htc_batt_schedule_batt_info_update();
+		break;
+	case HTC_GAUGE_EVENT_QB_MODE_ENTER:
+		htc_batt_schedule_batt_info_update();
+		break;
+	case HTC_GAUGE_EVENT_QB_MODE_DO_REAL_POWEROFF:
+		wake_lock(&batt_shutdown_wake_lock);
+		schedule_delayed_work(&shutdown_work,
+			msecs_to_jiffies(BATT_QB_MODE_REAL_POWEROFF_DELAY_MS));
 		break;
 	default:
 		pr_info("[BATT] unsupported gauge event(%d)\n", event);
@@ -968,6 +992,37 @@ static void htc_batt_trigger_store_battery_data(int triggle_flag)
 	return;
 }
 
+static void htc_batt_qb_mode_shutdown_status(int triggle_flag)
+{
+	if (triggle_flag == 1)
+	{
+		if (htc_batt_info.igauge &&
+				htc_batt_info.igauge->enter_qb_mode) {
+			qb_mode_enter = true;
+			htc_batt_info.igauge->enter_qb_mode();
+		}
+	}
+
+	if (triggle_flag == 0)
+	{
+		if (htc_batt_info.igauge &&
+				htc_batt_info.igauge->exit_qb_mode) {
+			qb_mode_enter = false;
+			htc_batt_info.igauge->exit_qb_mode();
+		}
+	}
+	return;
+}
+
+static void batt_qb_mode_pwr_consumption_check(unsigned long time_since_last_update_ms)
+{
+	if (htc_batt_info.igauge &&
+			htc_batt_info.igauge->qb_mode_pwr_consumption_check) {
+		htc_batt_info.igauge->qb_mode_pwr_consumption_check(time_since_last_update_ms);
+	}
+	return;
+}
+
 static void htc_batt_store_battery_ui_soc(int soc_ui)
 {
 	
@@ -1485,6 +1540,21 @@ static void batt_check_overload(void)
 	}
 }
 
+static void batt_check_critical_low_level(int *dec_level, int batt_current)
+{
+	int	i;
+
+	for(i = 0; i < DEC_LEVEL_CURR_TABLE_SIZE; i++) {
+		if (batt_current > dec_level_curr_table[i].threshold_ua) {
+			*dec_level = dec_level_curr_table[i].dec_level;
+
+			pr_debug("%s: i=%d, dec_level=%d, threshold_ua=%d\n",
+				__func__, i, *dec_level, dec_level_curr_table[i].threshold_ua);
+			break;
+		}
+	}
+}
+
 static void adjust_store_level(int *store_level, int drop_raw, int drop_ui, int prev) {
 	int store = *store_level;
 	
@@ -1515,7 +1585,7 @@ static void batt_level_adjust(unsigned long time_since_last_update_ms)
 	static bool allow_drop_one_percent_flag = false;
 	int prev_raw_level, drop_raw_level;
 	int prev_level;
-	int is_full = 0;
+	int is_full = 0, dec_level = 0;
 	int dropping_level;
 	static unsigned long time_accumulated_level_change = 0;
 	const struct battery_info_reply *prev_batt_info_rep =
@@ -1565,13 +1635,19 @@ static void batt_level_adjust(unsigned long time_since_last_update_ms)
 		if (is_voltage_critical_low(htc_batt_info.rep.batt_vol)) {
 			critical_low_enter = 1;
 			
+			if (htc_batt_info.decreased_batt_level_check)
+				batt_check_critical_low_level(&dec_level,
+					htc_batt_info.rep.batt_current);
+			else
+				dec_level = 6;
 
-			pr_info("[BATT] battery level force decreses 6%% from %d%%"
-					" (soc=%d)on critical low (%d mV)\n", prev_level,
-						htc_batt_info.rep.level,
-						htc_batt_info.critical_low_voltage_mv);
 			htc_batt_info.rep.level =
-					(prev_level - 6 > 0) ? (prev_level - 6) :	0;
+					(prev_level - dec_level > 0) ? (prev_level - dec_level) :	0;
+
+			pr_info("[BATT] battery level force decreses %d%% from %d%%"
+					" (soc=%d)on critical low (%d mV)(%d mA)\n", dec_level, prev_level,
+						htc_batt_info.rep.level, htc_batt_info.critical_low_voltage_mv,
+						htc_batt_info.rep.batt_current);
 		} else {
 			
 			
@@ -2354,6 +2430,9 @@ static void batt_worker(struct work_struct *work)
 		&& htc_batt_info.igauge->calculate_pj_level)
 		power_jacket_info_update();
 
+	
+	if(qb_mode_enter)
+		batt_qb_mode_pwr_consumption_check(time_since_last_update_ms);
 
 	
 	if (htc_batt_info.icharger) {
@@ -2761,6 +2840,8 @@ static int htc_battery_probe(struct platform_device *pdev)
 										pdata->notify_pnpmgr_charging_enabled;
 	htc_battery_core_ptr->func_trigger_store_battery_data =
 											htc_batt_trigger_store_battery_data;
+	htc_battery_core_ptr->func_qb_mode_shutdown_status =
+											htc_batt_qb_mode_shutdown_status;
 
 	htc_battery_core_register(&pdev->dev, htc_battery_core_ptr);
 
@@ -2786,6 +2867,7 @@ static int htc_battery_probe(struct platform_device *pdev)
 	htc_batt_info.overload_vol_thr_mv = pdata->overload_vol_thr_mv;
 	htc_batt_info.overload_curr_thr_ma = pdata->overload_curr_thr_ma;
 	htc_batt_info.smooth_chg_full_delay_min = pdata->smooth_chg_full_delay_min;
+	htc_batt_info.decreased_batt_level_check = pdata->decreased_batt_level_check;
 	chg_limit_active_mask = pdata->chg_limit_active_mask;
 #ifdef CONFIG_DUTY_CYCLE_LIMIT
 	chg_limit_timer_sub_mask = pdata->chg_limit_timer_sub_mask;

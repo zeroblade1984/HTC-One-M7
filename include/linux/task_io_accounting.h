@@ -22,8 +22,4 @@ struct task_io_accounting {
 
 	u64 cancelled_write_bytes;
 #endif 
-
-	
-	u64 acc_bytes[3];
-	unsigned long last_jiffies[3];
 };

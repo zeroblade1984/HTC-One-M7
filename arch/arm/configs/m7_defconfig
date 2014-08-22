@@ -3256,7 +3256,7 @@ CONFIG_FUSE_SD=y
 #
 CONFIG_EXFAT_FS=m
 CONFIG_EXFAT_PATH="texfat_m7"
-CONFIG_EXFAT_VERSION="target/htc.d/htc-3013.6.27"
+CONFIG_EXFAT_VERSION="target/htc.d/htc-3014.1.24"
 
 #
 # Caches

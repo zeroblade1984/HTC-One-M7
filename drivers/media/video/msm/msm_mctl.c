@@ -753,6 +753,18 @@ static int msm_mctl_open(struct msm_cam_media_controller *p_mctl,
 			goto sensor_sdev_failed;
 		}
 
+		if (s_ctrl->func_tbl->sensor_mode_init == NULL) {
+				rc = -EFAULT;
+				goto sensor_sdev_failed;
+		}
+
+		s_ctrl->first_init=0;
+		rc = s_ctrl->func_tbl->sensor_mode_init (s_ctrl, MSM_SENSOR_REG_INIT, 0);
+		if (rc < 0) {
+			pr_err("%s: sensor_mode_init failed: %d\n", __func__, rc);
+			goto sensor_sdev_failed;
+		}
+
 		
 		if (p_mctl->actctrl->a_init_table)
 			rc = p_mctl->actctrl->a_init_table();
@@ -846,27 +858,31 @@ register_sdev_failed:
 static int msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 {
 	int rc = 0;
-	struct msm_sensor_ctrl_t *s_ctrl=NULL;
-	struct msm_camera_sensor_info *sinfo=NULL;
-	struct msm_camera_device_platform_data *camdev=NULL;
+	struct msm_sensor_ctrl_t *s_ctrl = 0;
+	struct msm_camera_sensor_info *sinfo = 0;
+	struct msm_camera_device_platform_data *camdev = 0;
+
     if (!p_mctl) {
         pr_err("%s p_mctl is null\n", __func__);
-        return -EINVAL;
+        return -EFAULT;
     }
+
     s_ctrl = get_sctrl(p_mctl->sensor_sdev);
     if (!s_ctrl) {
         pr_err("%s s_ctrl is null\n", __func__);
-        return -EINVAL;
+        return -EFAULT;
     }
-    sinfo = (struct msm_camera_sensor_info *) s_ctrl->sensordata;
+
+    sinfo =	(struct msm_camera_sensor_info *) s_ctrl->sensordata;
     if (!sinfo) {
         pr_err("%s sinfo is null\n", __func__);
-        return -EINVAL;
+        return -EFAULT;
     }
+
     camdev = sinfo->pdata;
     if (!camdev) {
         pr_err("%s camdev is null\n", __func__);
-        return -EINVAL;
+        return -EFAULT;
     }
 
 #if 0 
@@ -909,8 +925,8 @@ static int msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 	
 	if (p_mctl) {
 		if (!p_mctl->axi_sdev) {
-			pr_err("%s axi_sdev is null\n", __func__);
-			return -EINVAL;
+			pr_err("%s p_mctl->axi_sdev is null\n", __func__);
+			return -EFAULT;
 		}
     	if (p_mctl == (struct msm_cam_media_controller *)
     			v4l2_get_subdev_hostdata(p_mctl->axi_sdev)) {

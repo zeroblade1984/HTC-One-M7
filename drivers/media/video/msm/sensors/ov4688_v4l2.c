@@ -1725,9 +1725,46 @@ int ov4688_write_exp_gain1_ex(struct msm_sensor_ctrl_t *s_ctrl,
 
 }
 
-void ov4688_start_stream(struct msm_sensor_ctrl_t *s_ctrl)
-{
-	CDBG("%s: called\n", __func__);
+void ov4688_start_stream_hdr(struct msm_sensor_ctrl_t *s_ctrl){
+
+	pr_info("becker  1031,ov4688_start_stream,HDR");
+
+	msm_camera_i2c_write_tbl(
+		s_ctrl->sensor_i2c_client,
+		s_ctrl->msm_sensor_reg->start_stream_conf,
+		s_ctrl->msm_sensor_reg->start_stream_conf_size,
+		s_ctrl->msm_sensor_reg->default_data_type);
+	mdelay(50);
+
+#if 0
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		0x30CC, 0x0,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	mdelay(50);
+
+	
+	msm_camera_i2c_read(s_ctrl->sensor_i2c_client,
+		0x3300, &read_data,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	read_data &= 0xEF;
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		0x3300, read_data,
+		MSM_CAMERA_I2C_BYTE_DATA);
+
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		0x4424, 0x07,
+		MSM_CAMERA_I2C_BYTE_DATA);
+	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
+		0x30CC, 0x3,
+		MSM_CAMERA_I2C_BYTE_DATA);
+#endif
+
+}
+
+void ov4688_start_stream_non_hdr(struct msm_sensor_ctrl_t *s_ctrl){
+
+
+	pr_info("ov4688_start_stream,non-HDR");
 
 	msm_camera_i2c_write_tbl(
     		s_ctrl->sensor_i2c_client,
@@ -1745,6 +1782,18 @@ void ov4688_start_stream(struct msm_sensor_ctrl_t *s_ctrl)
     		MSM_CAMERA_I2C_BYTE_DATA);
            power_on=0;
     }
+}
+
+void ov4688_start_stream(struct msm_sensor_ctrl_t *s_ctrl)
+{
+	CDBG("%s: called\n", __func__);
+
+	pr_info("[CAM] %s, hdr_mode = %d\n", __func__, s_ctrl->sensordata->hdr_mode);
+	if(s_ctrl->sensordata->hdr_mode){
+		ov4688_start_stream_hdr(s_ctrl);
+	}else{
+		ov4688_start_stream_non_hdr(s_ctrl);
+	}
 }
 
 int ov4688_write_hdr_outdoor_flag(struct msm_sensor_ctrl_t *s_ctrl, uint8_t is_outdoor)

@@ -271,12 +271,10 @@ static void msm_vb2_ops_buf_cleanup(struct vb2_buffer *vb)
 			mem = vb2_plane_cookie(vb, i);
 			if (!mem) { 
 				pr_err("%s: null pointer check, line(%d)", __func__, __LINE__);
-				buf->state = MSM_BUFFER_STATE_UNUSED;
 				return;
 			} 
 			if (!pmctl->client) {
 				pr_err("%s: null pointer check, line(%d)", __func__, __LINE__);
-				buf->state = MSM_BUFFER_STATE_UNUSED;
 				return;
 			}
 			videobuf2_pmem_contig_user_put(mem, pmctl->client);

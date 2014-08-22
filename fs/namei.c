@@ -2313,7 +2313,6 @@ SYSCALL_DEFINE1(rmdir, const char __user *, pathname)
 int vfs_unlink(struct inode *dir, struct dentry *dentry)
 {
 	int error = may_delete(dir, dentry, 0);
-	struct super_block *sb = dentry->d_sb;
 
 	if (error)
 		return error;
@@ -2335,10 +2334,6 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
 	}
 	mutex_unlock(&dentry->d_inode->i_mutex);
 	trace_vfs_unlink_done(dentry);
-	if (sb && (!strcmp(sb->s_type->name, "ext4")
-		|| !strcmp(sb->s_type->name, "fuse")
-		|| !strcmp(sb->s_type->name, "vfat")))
-		fs_debug_dump(FS_DBG_TYPE_ERASE, dentry->d_inode->i_size);
 
 	
 	if (!error && !(dentry->d_flags & DCACHE_NFSFS_RENAMED)) {

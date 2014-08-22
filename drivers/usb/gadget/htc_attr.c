@@ -133,8 +133,6 @@ void android_force_reset(void)
 {
 	if (_android_dev && _android_dev->cdev)
 		usb_composite_force_reset(_android_dev->cdev);
-	else
-		pr_info("force reset fails: no device.\n");
 }
 
 static bool isFunctionDisabled(struct android_usb_function *function)

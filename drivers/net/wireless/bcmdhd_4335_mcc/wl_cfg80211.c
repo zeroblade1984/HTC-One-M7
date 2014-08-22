@@ -3514,7 +3514,7 @@ wl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 
 	RETURN_EIO_IF_NOT_UP(wl);
 
-#if 0  
+#if 0 
 		if(dev == wl_to_prmry_ndev(wl)){
 			printf("%s sme->ssid[%s],sme->ssid_len[%d]\n", __FUNCTION__, sme->ssid,sme->ssid_len);
 			dhd_set_pfn_ssid(sme->ssid, sme->ssid_len);
@@ -8548,10 +8548,12 @@ wl_notify_pfn_status(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 	ndev = cfgdev_to_wlc_ndev(cfgdev, wl);
 
 #ifndef WL_SCHED_SCAN
+#ifndef CUSTOMER_HW_ONE
 	mutex_lock(&wl->usr_sync);
 	
 	cfg80211_disconnected(ndev, 0, NULL, 0, GFP_KERNEL);
 	mutex_unlock(&wl->usr_sync);
+#endif
 #else
 	wl_notify_sched_scan_results(wl, ndev, e, data);
 #endif 

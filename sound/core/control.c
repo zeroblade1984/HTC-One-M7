@@ -764,10 +764,6 @@ static int snd_ctl_elem_write(struct snd_card *card, struct snd_ctl_file *file,
 		}
 	}
 	up_read(&card->controls_rwsem);
-	
-	if (result < 0)
-		snd_printk(KERN_ERR "snd_ctl_elem_write error result=%d\n", result);
-	
 	return result;
 }
 
@@ -779,10 +775,8 @@ static int snd_ctl_elem_write_user(struct snd_ctl_file *file,
 	int result;
 
 	control = memdup_user(_control, sizeof(*control));
-	if (IS_ERR(control)) {
-		snd_printk(KERN_ERR "snd_ctl_elem_write_user error memdup_user\n"); 
+	if (IS_ERR(control))
 		return PTR_ERR(control);
-	}
 
 	card = file->card;
 	snd_power_lock(card);
@@ -794,11 +788,6 @@ static int snd_ctl_elem_write_user(struct snd_ctl_file *file,
 		if (copy_to_user(_control, control, sizeof(*control)))
 			result = -EFAULT;
 	kfree(control);
-
-	
-	if (result < 0)
-		snd_printk(KERN_ERR "snd_ctl_elem_write error result=%d\n", result);
-	
 	return result;
 }
 

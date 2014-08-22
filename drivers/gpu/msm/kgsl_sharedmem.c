@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2012,2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -83,12 +83,12 @@ static struct kgsl_process_private *
 _get_priv_from_kobj(struct kobject *kobj)
 {
 	struct kgsl_process_private *private;
-	unsigned long name;
+	unsigned int name;
 
 	if (!kobj)
 		return NULL;
 
-	if (sscanf(kobj->name, "%ld", &name) != 1)
+	if (kstrtou32(kobj->name, 0, &name))
 		return NULL;
 
 	list_for_each_entry(private, &kgsl_driver.process_list, list) {
@@ -780,7 +780,7 @@ _kgsl_sharedmem_ion_alloc(struct kgsl_memdesc *memdesc,
 		goto done;
 	}
 
-	handle = ion_alloc(kgsl_client, size, SZ_4K, 0x1 << ION_SF_HEAP_ID);
+	handle = ion_alloc(kgsl_client, size, SZ_4K, 0x1 << ION_SF_HEAP_ID,0);
 	if (IS_ERR_OR_NULL(handle)) {
 		ret = -ENOMEM;
 		goto done;

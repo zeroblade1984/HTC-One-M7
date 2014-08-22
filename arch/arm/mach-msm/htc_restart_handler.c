@@ -54,9 +54,9 @@ int read_backup_cc_uv(void)
 {
 	pr_info("%s: cc_backup_uv=%d, magic=%x\n", __func__,
 		reboot_params->cc_backup_uv, reboot_params->batt_magic);
-	if((reboot_params->batt_magic & 0xFFFFFF00)
+	if((reboot_params->batt_magic & MAGIC_NUM_FOR_BATT_SAVE)
 		== MAGIC_NUM_FOR_BATT_SAVE) {
-		if ((reboot_params->batt_magic & 0xFF) <= BATT_SAVE_MASK) {
+		if ((reboot_params->batt_magic & BATT_SAVE_MASK) <= BATT_SAVE_MASK) {
 			if ((reboot_params->batt_magic & HTC_BATT_SAVE_CC)
 				== HTC_BATT_SAVE_CC)
 				return reboot_params->cc_backup_uv;
@@ -68,10 +68,9 @@ EXPORT_SYMBOL(read_backup_cc_uv);
 
 void write_backup_cc_uv(int cc_reading)
 {
-	pr_info("%s: ori cc_backup_uv= %d, cc_reading=%d, magic_num=%x\n",
-		__func__, reboot_params->cc_backup_uv, cc_reading,
-		reboot_params->batt_magic);
-	if ((reboot_params->batt_magic & ~BATT_SAVE_MASK)
+	pr_info("%s: ori cc_backup_uv= %d, cc_reading=%d\n", __func__,
+		reboot_params->cc_backup_uv, cc_reading);
+	if ((reboot_params->batt_magic & MAGIC_NUM_FOR_BATT_SAVE)
 		!= MAGIC_NUM_FOR_BATT_SAVE)
 		reboot_params->batt_magic = MAGIC_NUM_FOR_BATT_SAVE;
 	reboot_params->batt_magic |= HTC_BATT_SAVE_CC;
@@ -85,9 +84,9 @@ uint16_t read_backup_ocv_at_100(void)
 {
 	pr_info("%s: ocv_at_100=%x, magic=%x\n", __func__,
 		reboot_params->ocv_reading_at_100, reboot_params->batt_magic);
-	if((reboot_params->batt_magic & 0xFFFFFF00)
+	if((reboot_params->batt_magic & MAGIC_NUM_FOR_BATT_SAVE)
 		== MAGIC_NUM_FOR_BATT_SAVE) {
-		if ((reboot_params->batt_magic & 0xFF) <= BATT_SAVE_MASK) {
+		if ((reboot_params->batt_magic & BATT_SAVE_MASK) <= BATT_SAVE_MASK) {
 			if ((reboot_params->batt_magic & HTC_BATT_SAVE_OCV_RAW)
 				== HTC_BATT_SAVE_OCV_RAW)
 				return reboot_params->ocv_reading_at_100;
@@ -99,10 +98,9 @@ EXPORT_SYMBOL(read_backup_ocv_at_100);
 
 void write_backup_ocv_at_100(uint16_t ocv_reading)
 {
-	pr_info("%s: ori ocv_at_100=%x, ocv_reading=%x, magic_num=%x\n",
-		__func__, reboot_params->ocv_reading_at_100, ocv_reading,
-		reboot_params->batt_magic);
-	if((reboot_params->batt_magic & ~BATT_SAVE_MASK)
+	pr_info("%s: ori ocv_at_100=%x, ocv_reading=%x\n", __func__,
+		reboot_params->ocv_reading_at_100, ocv_reading);
+	if((reboot_params->batt_magic & MAGIC_NUM_FOR_BATT_SAVE)
 		!= MAGIC_NUM_FOR_BATT_SAVE)
 		reboot_params->batt_magic = MAGIC_NUM_FOR_BATT_SAVE;
 	reboot_params->batt_magic |= HTC_BATT_SAVE_OCV_RAW;
@@ -116,9 +114,9 @@ int read_backup_ocv_uv(void)
 {
 	pr_info("%s: ocv_backup_uv=%d, magic=%x\n", __func__,
 		reboot_params->ocv_backup_uv, reboot_params->batt_magic);
-	if((reboot_params->batt_magic & 0xFFFFFF00)
+	if((reboot_params->batt_magic & MAGIC_NUM_FOR_BATT_SAVE)
 		== MAGIC_NUM_FOR_BATT_SAVE) {
-		if ((reboot_params->batt_magic & 0xFF) <= BATT_SAVE_MASK) {
+		if ((reboot_params->batt_magic & BATT_SAVE_MASK) <= BATT_SAVE_MASK) {
 			if ((reboot_params->batt_magic & HTC_BATT_SAVE_OCV_UV)
 				== HTC_BATT_SAVE_OCV_UV)
 				return reboot_params->ocv_backup_uv;
@@ -130,10 +128,9 @@ EXPORT_SYMBOL(read_backup_ocv_uv);
 
 void write_backup_ocv_uv(int ocv_backup)
 {
-	pr_info("%s: ori ocv_backup_uv=%d, ocv_backup=%d, magic_num=%x\n",
-		__func__, reboot_params->ocv_backup_uv, ocv_backup,
-		reboot_params->batt_magic);
-	if((reboot_params->batt_magic & ~BATT_SAVE_MASK)
+	pr_info("%s: ori ocv_backup_uv=%d, ocv_backup=%d\n", __func__,
+		reboot_params->ocv_backup_uv, ocv_backup);
+	if((reboot_params->batt_magic & MAGIC_NUM_FOR_BATT_SAVE)
 		!= MAGIC_NUM_FOR_BATT_SAVE)
 		reboot_params->batt_magic = MAGIC_NUM_FOR_BATT_SAVE;
 	reboot_params->batt_magic |= HTC_BATT_SAVE_OCV_UV;

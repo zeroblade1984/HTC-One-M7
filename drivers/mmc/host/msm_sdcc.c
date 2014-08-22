@@ -1833,6 +1833,7 @@ static irqreturn_t
 msmsdcc_irq(int irq, void *dev_id)
 {
 	struct msmsdcc_host	*host = dev_id;
+	struct mmc_host         *mmc = host->mmc;
 	u32			status;
 	int			ret = 0;
 	int			timer = 0;
@@ -1892,6 +1893,13 @@ if (is_wimax_platform(host->plat) && mmc_wimax_get_status())
 				if (host->plat->sdiowakeup_irq)
 					wake_lock(&host->sdio_wlock);
 			} else {
+				if (!mmc->card || (mmc->card &&
+				    !mmc_card_sdio(mmc->card))) {
+					pr_warning("%s: SDCC core interrupt received for non-SDIO cards when SDCC clocks are off\n",
+						mmc_hostname(mmc));
+					ret = 1;
+					break;
+				}
 				spin_unlock(&host->lock);
 				mmc_signal_sdio_irq(host->mmc);
 				spin_lock(&host->lock);
@@ -1920,6 +1928,13 @@ if (is_wimax_platform(host->plat) && mmc_wimax_get_status())
 #endif
 
 		if (status & MCI_SDIOINTROPE) {
+			if (!mmc->card || (mmc->card &&
+			    !mmc_card_sdio(mmc->card))) {
+				pr_warning("%s: SDIO interrupt (SDIOINTROPE) received for non-SDIO card\n",
+					mmc_hostname(mmc));
+				ret = 1;
+				break;
+			}
 			if (host->sdcc_suspending)
 				wake_lock(&host->sdio_suspend_wlock);
 			spin_unlock(&host->lock);

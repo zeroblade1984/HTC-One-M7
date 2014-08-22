@@ -50,8 +50,11 @@ struct mutex spk_ampl_lock;
 static int tfa9887l_opened;
 static int last_spkampl_state;
 static int dspl_enabled;
-static int tfa9887_step;
-static int tfa9887_step_en;
+int tfa9887l_step = -1;
+EXPORT_SYMBOL(tfa9887l_step);
+int tfa9887l_step_en = 0;
+EXPORT_SYMBOL(tfa9887l_step_en);
+
 static int tfa9887_i2c_write(char *txData, int length);
 static int tfa9887_i2c_read(char *rxData, int length);
 #ifdef CONFIG_DEBUG_FS
@@ -175,25 +178,24 @@ static int tfa9887_i2c_write(char *txData, int length)
 		},
 	};
 	
-	if (tfa9887_step_en)
-		tfa9887_step ++;
+	if (tfa9887l_step_en)
+		tfa9887l_step ++;
 #if DEBUG
-	pr_err("%s: tfa9887_step %d\n", __func__, tfa9887_step);
+	pr_err("%s: tfa9887l_step %d\n", __func__, tfa9887l_step);
 #endif
 
 	rc = i2c_transfer(this_client->adapter, msg, 1);
-
 	if (rc < 0) {
 		pr_err("%s: transfer error %d\n", __func__, rc);
 		return rc;
 	}
 
 	
-	if (tfa9887_step_en)
-		tfa9887_step ++;
+	if (tfa9887l_step_en)
+		tfa9887l_step ++;
 
 #if DEBUG
-	pr_err("%s: tfa9887_step %d\n", __func__, tfa9887_step);
+	pr_err("%s: tfa9887l_step %d\n", __func__, tfa9887l_step);
 	{
 		int i = 0;
 		for (i = 0; i < length; i++)
@@ -218,10 +220,10 @@ static int tfa9887_i2c_read(char *rxData, int length)
 	};
 
 	
-	if (tfa9887_step_en)
-		tfa9887_step ++;
+	if (tfa9887l_step_en)
+		tfa9887l_step ++;
 #if DEBUG
-	pr_err("%s: tfa9887_step %d\n", __func__, tfa9887_step);
+	pr_err("%s: tfa9887l_step %d\n", __func__, tfa9887l_step);
 #endif
 
 	rc = i2c_transfer(this_client->adapter, msgs, 1);
@@ -231,11 +233,11 @@ static int tfa9887_i2c_read(char *rxData, int length)
 	}
 
 	
-	if (tfa9887_step_en)
-		tfa9887_step ++;
+	if (tfa9887l_step_en)
+		tfa9887l_step ++;
 
 #if DEBUG
-	pr_err("%s: tfa9887_step %d\n", __func__, tfa9887_step);
+	pr_err("%s: tfa9887l_step %d\n", __func__, tfa9887l_step);
 	{
 		int i = 0;
 		for (i = 0; i < length; i++)
@@ -255,7 +257,7 @@ static int tfa9887l_open(struct inode *inode, struct file *file)
 		pr_info("%s: busy\n", __func__);
 	}
 	tfa9887l_opened = 1;
-	tfa9887_step_en = 0;
+
 	return rc;
 }
 
@@ -286,11 +288,11 @@ void set_tfa9887l_spkamp(int en, int dsp_mode)
 	unsigned char power_data[3] = {0, 0, 0};
 	unsigned char SPK_CR[3] = {0x8, 0x8, 0};
 
-	
-	tfa9887_step = 0;
-	tfa9887_step_en = 1;
 	pr_info("%s: en = %d dsp_enabled = %d\n", __func__, en, dspl_enabled);
 	mutex_lock(&spk_ampl_lock);
+	
+	tfa9887l_step = 0;
+	tfa9887l_step_en = 1;
 	if (en && !last_spkampl_state) {
 		last_spkampl_state = 1;
 		
@@ -346,10 +348,11 @@ void set_tfa9887l_spkamp(int en, int dsp_mode)
 			tfa9887_i2c_write(power_data, 3);
 		}
 	}
-	mutex_unlock(&spk_ampl_lock);
-
 	
-	tfa9887_step_en = 0;
+	tfa9887l_step_en = 0;
+	tfa9887l_step = -1;
+
+	mutex_unlock(&spk_ampl_lock);
 }
 
 static long tfa9887l_ioctl(struct file *file, unsigned int cmd,
@@ -373,7 +376,12 @@ static long tfa9887l_ioctl(struct file *file, unsigned int cmd,
 		len = reg_value[0];
 		addr = (char *)reg_value[1];
 
+		
+		tfa9887l_step = 0;
+		tfa9887l_step_en = 2;
 		tfa9887_i2c_write(addr+1, len -1);
+		tfa9887l_step_en = 0;
+		tfa9887l_step = -1;
 
 		break;
 	case TPA9887_READ_CONFIG:
@@ -386,7 +394,13 @@ static long tfa9887l_ioctl(struct file *file, unsigned int cmd,
 
 		len = reg_value[0];
 		addr = (char *)reg_value[1];
+
+		
+		tfa9887l_step = 0;
+		tfa9887l_step_en = 2;
 		tfa9887_i2c_read(addr, len);
+		tfa9887l_step_en = 0;
+		tfa9887l_step = -1;
 
 		rc = copy_to_user(argp, reg_value, sizeof(reg_value));
 		if (rc) {
@@ -395,7 +409,6 @@ static long tfa9887l_ioctl(struct file *file, unsigned int cmd,
 		}
 		break;
 	case TPA9887_ENABLE_DSP:
-		pr_info("%s: TPA9887_ENABLE_DSP\n", __func__);
 		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
 		if (rc) {
 			pr_err("%s: copy from user failed.\n", __func__);
@@ -404,6 +417,7 @@ static long tfa9887l_ioctl(struct file *file, unsigned int cmd,
 
 		len = reg_value[0];
 		dspl_enabled = reg_value[1];
+		pr_info("%s: TPA9887_ENABLE_DSP(%d)\n", __func__, dspl_enabled);
 		break;
 	case TPA9887_KERNEL_LOCK:
 		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
@@ -414,11 +428,13 @@ static long tfa9887l_ioctl(struct file *file, unsigned int cmd,
 
 		len = reg_value[0];
 		
-		pr_debug("TPA9887_KLOCK2 %d\n", reg_value[1]);
-		if (reg_value[1])
+		if (reg_value[1]) {
 		   mutex_lock(&spk_ampl_lock);
-		else
+		   pr_info("TPA9887_KLOCK2 ++\n");
+		} else {
+		   pr_info("TPA9887_KLOCK2 --\n");
 		   mutex_unlock(&spk_ampl_lock);
+		}
 		break;
 	}
 err:

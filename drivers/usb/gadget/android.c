@@ -518,11 +518,18 @@ static void adb_closed_callback(void)
 		mutex_unlock(&dev->mutex);
 }
 
+
 static void adb_read_timeout(void)
 {
-	pr_info("%s: adb read timeout, re-connect to PC\n",__func__);
+	struct android_dev *dev = _android_dev;
 
-	android_force_reset();
+	pr_info("%s: adb read timeout, re-connect to PC\n", __func__);
+
+	if (dev) {
+		android_disable(dev);
+		mdelay(100);
+		android_enable(dev);
+	}
 }
 
 
@@ -1401,7 +1408,7 @@ rndis_function_init(struct android_usb_function *f,
 	if (dev->pdata && dev->pdata->manufacturer_name)
 		strncpy(rndis->manufacturer,
 			dev->pdata->manufacturer_name,
-			sizeof(rndis->manufacturer));
+			sizeof(rndis->manufacturer) - 1);
 	rndis->vendorID = dev->pdata->vendor_id;
 
 	return 0;
@@ -2454,15 +2461,13 @@ static ssize_t bugreport_debug_store(struct device *pdev,
 	sscanf(buff, "%d", &enable);
 	ats = board_get_usb_ats();
 
-	if (enable == 5 && ats)
+	if (enable && ats)
 		bugreport_debug = 1;
-	else if (enable == 0 && ats) {
+	else {
 		bugreport_debug = 0;
 		del_timer(&adb_read_timer);
 	}
-
-	pr_info("bugreport_debug = %d, enable = %d, ats = %d\n", bugreport_debug, enable, ats);
-
+	pr_info("bugreport_debug = %d, enable=%d, ats = %d\n", bugreport_debug, enable, ats);
 	return size;
 }
 

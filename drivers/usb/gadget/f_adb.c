@@ -332,6 +332,7 @@ requeue_req:
 	
 	ret = wait_event_interruptible(dev->read_wq, dev->rx_done ||
 				atomic_read(&dev->error));
+
 	if (bugreport_debug) {
 		if (atomic_read(&dev->error)) {
 			r = -EIO;
@@ -402,14 +403,14 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 			break;
 		}
 
-		if (bugreport_debug)
-			mod_timer(&adb_read_timer, READ_TIMEOUT_VALUE);
-
 		
 		req = 0;
 		ret = wait_event_interruptible(dev->write_wq,
 			((req = adb_req_get(dev, &dev->tx_idle)) ||
 			 atomic_read(&dev->error)));
+
+		if (bugreport_debug)
+			mod_timer(&adb_read_timer, READ_TIMEOUT_VALUE);
 
 		if (ret < 0) {
 			r = ret;

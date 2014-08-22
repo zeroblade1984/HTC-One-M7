@@ -378,8 +378,6 @@ static int pil_riva_reset(struct pil_desc *pil)
 static int pil_riva_shutdown(struct pil_desc *pil)
 {
 
-	printk("[WLAN] pil_riva_shutdown");
-
 	
 	writel_relaxed(1, RIVA_RESET);
 	mb();

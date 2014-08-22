@@ -798,7 +798,7 @@ static void sensor_irq_do_work(struct work_struct *work)
 	}
 
 	if (!(add & 0x3F)) { 
-		if (inter_error < 30) {
+		if (inter_error < 10) {
 			D("[PS][cm3629 warning]%s unkown interrupt: 0x%x!\n",
 			__func__, add);
 			inter_error++ ;

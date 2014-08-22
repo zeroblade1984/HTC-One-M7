@@ -1204,7 +1204,6 @@ struct super_block {
 	
 	int s_readonly_remount;
 
-	
 #define FLAG_ASYNC_FSYNC	0x1
 	unsigned int fsync_flags;
 };
@@ -2276,15 +2275,6 @@ static inline void inode_has_no_xattr(struct inode *inode)
 	if (!is_sxid(inode->i_mode) && (inode->i_sb->s_flags & MS_NOSEC))
 		inode->i_flags |= S_NOSEC;
 }
-
-struct fs_dbg_threshold {
-	uint64_t	threshold;
-	char		type[8];
-};
-#define FS_DBG_TYPE_READ		0
-#define FS_DBG_TYPE_WRITE		1
-#define FS_DBG_TYPE_ERASE		2
-extern void fs_debug_dump(unsigned int type, size_t bytes);
 
 #endif 
 #endif 

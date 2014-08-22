@@ -915,8 +915,8 @@ static u32 ddl_set_enc_property(struct ddl_client_context *ddl,
 					align_virtual_addr =
 					recon_buffers->kernel_virtual_addr +
 					recon_buffers->ysize;
-				DDL_MSG_LOW("Y::KVirt: %p,KPhys: %p"
-							"UV::KVirt: %p,KPhys: %p\n",
+				DDL_MSG_LOW("Y::KVirt: %p, KPhys: %p "\
+					"UV::KVirt: %p, KPhys: %p\n",
 				encoder->hw_bufs.dpb_y[index_hw_bufs].
 				align_virtual_addr,
 				encoder->hw_bufs.dpb_y[index_hw_bufs].
@@ -926,7 +926,7 @@ static u32 ddl_set_enc_property(struct ddl_client_context *ddl,
 				encoder->hw_bufs.dpb_c[index_hw_bufs].
 				align_physical_addr);
 				vcd_status = VCD_S_SUCCESS;
-				}
+			}
 		}
 	}
 	break;
@@ -981,6 +981,7 @@ static u32 ddl_set_enc_property(struct ddl_client_context *ddl,
 		u32 num_mb, num_slices;
 		struct vcd_property_hdr slice_property_hdr;
 		struct vcd_property_meta_data_enable slice_meta_data;
+		slice_meta_data.meta_data_enable_flag = 0;
 		DDL_MSG_HIGH("Set property VCD_I_SLICE_DELIVERY_MODE\n");
 		if (sizeof(u32) == property_hdr->sz &&
 			encoder->codec.codec == VCD_CODEC_H264 &&
@@ -1365,21 +1366,12 @@ static u32 ddl_get_enc_property(struct ddl_client_context *ddl,
 			property_hdr->sz &&
 			encoder->seq_header_length <=
 			seq_hdr->sequence_header_len) {
-			if (!encoder->seq_header.align_virtual_addr ||
-				encoder->seq_header_length & 0x80000000) {
-				DDL_MSG_ERROR("NULL addr (%p) or negative length (%d)",
-					encoder->seq_header.align_virtual_addr,
-					encoder->seq_header_length);
-				seq_hdr->sequence_header_len = 0;
-				vcd_status = VCD_ERR_NO_SEQ_HDR;
-			} else {
-				memcpy(seq_hdr->sequence_header,
-					encoder->seq_header.align_virtual_addr,
-					encoder->seq_header_length);
-				seq_hdr->sequence_header_len =
-					encoder->seq_header_length;
-				vcd_status = VCD_S_SUCCESS;
-			}
+			memcpy(seq_hdr->sequence_header,
+				encoder->seq_header.align_virtual_addr,
+				encoder->seq_header_length);
+			seq_hdr->sequence_header_len =
+				encoder->seq_header_length;
+			vcd_status = VCD_S_SUCCESS;
 		}
 	}
 	break;
@@ -1944,6 +1936,7 @@ u32 ddl_set_default_decoder_buffer_req(struct ddl_decoder_data *decoder,
 	struct vcd_buffer_requirement *input_buf_req;
 	struct vcd_buffer_requirement *output_buf_req;
 	u32  min_dpb, y_cb_cr_size;
+	u32  frame_height_actual = 0;
 
 	if (!decoder->codec.codec)
 		return false;
@@ -1967,6 +1960,7 @@ u32 ddl_set_default_decoder_buffer_req(struct ddl_decoder_data *decoder,
 		if ((decoder->buf_format.buffer_format ==
 			VCD_BUFFER_FORMAT_TILE_4x2) &&
 			(frame_size->height < MDP_MIN_TILE_HEIGHT)) {
+			frame_height_actual = frame_size->height;
 			frame_size->height = MDP_MIN_TILE_HEIGHT;
 			ddl_calculate_stride(frame_size,
 				!decoder->progressive_only);
@@ -2005,6 +1999,10 @@ u32 ddl_set_default_decoder_buffer_req(struct ddl_decoder_data *decoder,
 	input_buf_req->sz = (1024 * 1024 * 2);
 	input_buf_req->align = DDL_LINEAR_BUFFER_ALIGN_BYTES;
 	decoder->min_input_buf_req = *input_buf_req;
+	if (frame_height_actual) {
+		frame_size->height = frame_height_actual;
+		ddl_calculate_stride(frame_size, !decoder->progressive_only);
+	}
 	return true;
 }
 

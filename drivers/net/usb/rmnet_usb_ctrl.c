@@ -1165,7 +1165,7 @@ static const struct file_operations ctrldev_fops = {
 #define RMNET_CTRL_ITC_AP_ISIS ITC_BIT(3) 
 #define RMNET_CTRL_ITC_AP_VT ITC_BIT(4) 
 #define RMNET_CTRL_ITC_AP_MAX ITC_BIT(4) 
-#define RMNET_CTRL_ITC_AP_COUNT 3 
+#define RMNET_CTRL_ITC_AP_COUNT 3
 
 #define RMNET_CTRL_ITC_AUDIO_INIT RMNET_CTRL_ITC_AP_AUDIO | RMNET_CTRL_ITC_INIT
 #define RMNET_CTRL_ITC_AUDIO_ENABLE RMNET_CTRL_ITC_AP_AUDIO | RMNET_CTRL_ITC_ENABLE
@@ -1176,11 +1176,162 @@ static const struct file_operations ctrldev_fops = {
 #define RMNET_CTRL_ITC_VT_INIT RMNET_CTRL_ITC_AP_VT | RMNET_CTRL_ITC_INIT
 #define RMNET_CTRL_ITC_VT_ENABLE RMNET_CTRL_ITC_AP_VT | RMNET_CTRL_ITC_ENABLE
 #define RMNET_CTRL_ITC_VT_DISABLE RMNET_CTRL_ITC_AP_VT | RMNET_CTRL_ITC_DISABLE
+unsigned int rmnet_ctrl_itc_catch = 0;
+
+inline void set_itc_bit(unsigned int* value, unsigned int bit)
+{
+	if (!value)
+	{
+		pr_err("[%s] value is null\n", __func__);
+		return;
+	}
+
+	(*value) |= bit;
+	return;
+}
+
+inline void clear_itc_bit(unsigned int* value, unsigned int bit)
+{
+	if (!value)
+	{
+		pr_err("[%s] value is null\n", __func__);
+		return;
+	}
+
+	if ( (*value) & bit )
+	{
+		(*value) &= ~bit;
+	}
+
+	return;
+}
+
+int rmnet_ctrl_set_itc_value_check(int value, int* p_enable, int* p_need_set)
+{
+	int ret = 0;
+	int enable = 0;
+	int is_init = 0;
+	int ap_bit = 0;
+	int need_set = 1;
+	int has_ap_in_catch = 0;
+	char ap_name[128] = {0};
+	int i = 0;
+
+	enable = (value & RMNET_CTRL_ITC_ENABLE) ? 1 : 0;
+	is_init = (value & RMNET_CTRL_ITC_INIT) ? 1 : 0;
+
+	for ( i = 0; i < RMNET_CTRL_ITC_AP_COUNT; i++)
+	{
+		if (value & (RMNET_CTRL_ITC_AP_START << i)) {
+			ap_bit = (RMNET_CTRL_ITC_AP_START << i);
+			break;
+		}
+	}
+
+	if ( !ap_bit ) 
+	{
+		
+		pr_err("[%s] can't find ap, value=[0x%x]\n", __func__, value);
+		enable = 0;
+		need_set = 0;
+		ret = -1;
+		goto end;
+	}
+
+	switch (ap_bit)
+	{
+		case RMNET_CTRL_ITC_AP_AUDIO:
+			sprintf( ap_name, "%s", "audio");
+			break;
+		case RMNET_CTRL_ITC_AP_ISIS:
+			sprintf( ap_name, "%s", "isis");
+			break;
+		case RMNET_CTRL_ITC_AP_VT:
+			sprintf( ap_name, "%s", "vt");
+			break;
+		default:
+			break;
+	}
+
+	pr_info("[%s] value=[0x%x], ap=[%s(0x%x)], enable=[%d], is_init=[%d], rmnet_ctrl_itc_catch=[0x%x]\n", __func__, value, ap_name, ap_bit, enable, is_init, rmnet_ctrl_itc_catch);
+
+	if ( is_init ) 
+	{
+		
+		
+		clear_itc_bit ( &rmnet_ctrl_itc_catch, ap_bit );
+		goto check_if_need_set_itc;
+	}
+
+	if (enable)
+	{
+		
+		set_itc_bit ( &rmnet_ctrl_itc_catch, ap_bit );
+	}
+	else
+	{
+		
+		
+		clear_itc_bit ( &rmnet_ctrl_itc_catch, ap_bit );
+	}
+
+
+check_if_need_set_itc:
+	
+	for ( i = 0; i < RMNET_CTRL_ITC_AP_COUNT; i++)
+	{
+		if (rmnet_ctrl_itc_catch & (RMNET_CTRL_ITC_AP_START << i)) {
+			has_ap_in_catch = (RMNET_CTRL_ITC_AP_START << i);
+			break;
+		}
+	}
+
+	if ( has_ap_in_catch )
+	{
+		enable = 1;
+	}
+	else
+	{
+		enable = 0;
+	}
+
+	
+
+	
+	if ( enable != ((rmnet_ctrl_itc_catch & RMNET_CTRL_ITC_ENABLE) ? 1 : 0 ) )
+	{
+		need_set = 1;
+		
+		if ( enable )
+		{
+			set_itc_bit ( &rmnet_ctrl_itc_catch, RMNET_CTRL_ITC_ENABLE );
+		}
+		else
+		{
+			
+			clear_itc_bit ( &rmnet_ctrl_itc_catch, RMNET_CTRL_ITC_ENABLE );
+		}
+	}
+	else
+	{
+		need_set = 0;
+	}
+
+	pr_info("[%s] need_set: value=[0x%x], ap=[%s(0x%x)], enable=[%d], is_init=[%d], rmnet_ctrl_itc_catch=[0x%x], has_ap_in_catch=[%d], need_set=[%d]\n", __func__, value, ap_name, ap_bit, enable, is_init, rmnet_ctrl_itc_catch, has_ap_in_catch, need_set);
+end:
+	*p_enable = enable;
+	*p_need_set = need_set;
+	return ret;
+}
+
 
 static int enable_shorten_itc_count = 0;
 static int rmnet_ctrl_set_itc( struct rmnet_ctrl_dev *dev, int value ) {
 	int ret = 0;
 	int enable = 0;
+	int is_oldversion = 0;
+	int check_itc_err = 0;
+	int need_set_itc = 0;
 	struct usb_device	*udev;
 
 	if (!dev) {
@@ -1193,31 +1344,50 @@ static int rmnet_ctrl_set_itc( struct rmnet_ctrl_dev *dev, int value ) {
 		return -ENODEV;
 	}
 
+	
+	mutex_lock(&dev->dev_lock);
+
 	udev = interface_to_usbdev(dev->intf);
 
-	if ( value & RMNET_CTRL_ITC_INIT ) {
-		pr_info("[%s][%s] value=[%d], not support init\n", __func__, dev->name, value);
-		return -ENODEV;
+	if ( value <= 1 ) {
+		is_oldversion = 1;
 	}
 
-	if ( value & RMNET_CTRL_ITC_ENABLE ) {
-		enable = 1;
+	if ( is_oldversion ) {
+		switch(value) {
+			case 1://enable
+				enable = 1;
+				break;
+			case 0://disable
+				enable = 0;
+				break;
+			default://other
+				pr_info("[%s][%s] value=[%d]\n", __func__, dev->name, value);
+				mutex_unlock(&dev->dev_lock);
+				return -ENODEV;
+		}
 	} else {
-		enable = 0;
+		check_itc_err = rmnet_ctrl_set_itc_value_check( value, &enable, &need_set_itc );
+		pr_info("[%s][%s] value=[%d], check_itc_err=[%d], enable=[%d], need_set_itc=[%d]\n", __func__, dev->name, value, check_itc_err, enable, need_set_itc);
+		if ( check_itc_err ) {
+			mutex_unlock(&dev->dev_lock);
+			return -ENODEV;
+		}
+		if ( need_set_itc == 0 ) {
+			mutex_unlock(&dev->dev_lock);
+			return ret;
+		}
 	}
 
 	
-
-	pr_info("[%s][%s] mutex_lock\n", __func__, dev->name);
-	mutex_lock(&dev->dev_lock);
 
 	if (!(test_bit(RMNET_CTRL_DEV_OPEN, &dev->status) && test_bit(RMNET_CTRL_DEV_READY, &dev->status))) {
 		pr_err("[%s] is_opened=[%d], resp_available=[%d]\n", __func__, test_bit(RMNET_CTRL_DEV_OPEN, &dev->status), test_bit(RMNET_CTRL_DEV_READY, &dev->status));
 		mutex_unlock(&dev->dev_lock);
 		return -ENODEV;
 	}
-	pr_info("[%s] is_opened=[%d], resp_available=[%d]\n", __func__, test_bit(RMNET_CTRL_DEV_OPEN, &dev->status), test_bit(RMNET_CTRL_DEV_READY, &dev->status));
-	pr_info("[%s] enable_shorten_itc_count:%d enable:%d\n", __func__, enable_shorten_itc_count, enable);
+	pr_info("[%s] is_opened=[%d], resp_available=[%d], enable_shorten_itc_count=[%d], enable=[%d], is_oldversion=[%d]\n", __func__, test_bit(RMNET_CTRL_DEV_OPEN, &dev->status), test_bit(RMNET_CTRL_DEV_READY, &dev->status), enable_shorten_itc_count, enable, is_oldversion);
+	
 	if ( enable ) {
 		if (enable_shorten_itc_count == 0) {
 			
@@ -1228,9 +1398,10 @@ static int rmnet_ctrl_set_itc( struct rmnet_ctrl_dev *dev, int value ) {
 				return -ENODEV;
 			}
 
-			pr_info("[%s][%s] usb_set_interrupt_latency(1)+\n", __func__, dev->name);
+			pr_info("[%s][%s] usb_set_interrupt_latency(1)\n", __func__, dev->name);
+			
 			ret = usb_set_interrupt_latency(udev, HSIC_FAST_INTERRUPT_LATENCY);
-			pr_info("[%s][%s] usb_set_interrupt_latency-\n", __func__, dev->name);
+			
 			if ( dev->intf )
 				usb_autopm_put_interface(dev->intf);
 			else
@@ -1250,9 +1421,10 @@ static int rmnet_ctrl_set_itc( struct rmnet_ctrl_dev *dev, int value ) {
 					mutex_unlock(&dev->dev_lock);
 					return -ENODEV;
 				}
-				pr_info("[%s][%s] usb_set_interrupt_latency(6)+\n", __func__, dev->name);
+				pr_info("[%s][%s] usb_set_interrupt_latency(6)\n", __func__, dev->name);
+				
 				ret = usb_set_interrupt_latency(udev, HSIC_SLOW_INTERRUPT_LATENCY);
-				pr_info("[%s][%s] usb_set_interrupt_latency-\n", __func__, dev->name);
+				
 				if ( dev->intf )
 					usb_autopm_put_interface(dev->intf);
 				else
@@ -1261,7 +1433,7 @@ static int rmnet_ctrl_set_itc( struct rmnet_ctrl_dev *dev, int value ) {
 		}
 	}
 	mutex_unlock(&dev->dev_lock);
-	pr_info("[%s][%s] mutex_unlock\n", __func__, dev->name);
+	
 
 	return ret;
 }
@@ -1708,8 +1880,16 @@ int rmnet_usb_ctrl_init(int no_rmnet_devs, int no_rmnet_insts_per_dev)
 					__func__, PTR_ERR(dev->devicep));
 				cdev_del(&dev->cdev);
 				destroy_workqueue(dev->wq);
+				
+				status = PTR_ERR(dev->devicep);
+				
 				kfree(dev);
-				return PTR_ERR(dev->devicep);
+				
+				
+				
+				
+				return status;
+				
 			}
 
 			
