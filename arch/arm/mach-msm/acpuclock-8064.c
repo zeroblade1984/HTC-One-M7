@@ -255,6 +255,7 @@ static struct acpu_level tbl_PVS0_1700MHz[] __initdata = {
 	{ 1, {  1782000, HFPLL, 1, 0x42 }, L2(14), 1250000 },
 #ifdef CONFIG_CPU_OVERCLOCK
 	{ 1, {  1890000, HFPLL, 1, 0x46 }, L2(14), 1275000 },
+	{ 1, { 	1944000, HFPLL, 1, 0x48 }, L2(14), 1300000 },
 #endif
 	{ 0, { 0 } }
 };
@@ -564,7 +565,7 @@ unsigned msm8064_perf_acpu_table[] = {
 	594000000, 
 	810000000, 
 	1026000000,
-	1350000000,
+	1134000000,
 	1512000000, 
 };
 
