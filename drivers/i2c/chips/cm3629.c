@@ -579,6 +579,9 @@ static void report_psensor_input_event(struct cm3629_info *lpi, int interrupt_fl
 	} else {
 		val = (interrupt_flag == 2) ? 0 : 1;
 	}
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
+	ps_near = !val;
+#endif
 
 	if (lpi->ps_debounce == 1 && lpi->mfg_mode != MFG_MODE) {
 		if (val == 0) {
@@ -2571,6 +2574,26 @@ int power_key_check_in_pocket(void)
 	pocket_mode_flag = 0;
 	return (ls_dark && ps_near);
 }
+
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
+int pocket_detection_check(void)
+{
+	struct cm3629_info *lpi = lp_info;
+
+	if (!is_probe_success) {
+		D("[cm3629] %s return by cm3629 probe fail\n", __func__);
+		return 0;
+	}
+	pocket_mode_flag = 1;
+
+	psensor_enable(lpi);
+	D("[cm3629] %s ps_near = %d\n", __func__, ps_near);
+	psensor_disable(lpi);
+
+	pocket_mode_flag = 0;
+	return (ps_near);
+}
+#endif
 
 int psensor_enable_by_touch_driver(int on)
 {
