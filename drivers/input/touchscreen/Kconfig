@@ -1019,8 +1019,15 @@ config TOUCHSCREEN_MAX1187X
 
 config TOUCHSCREEN_HIMAX
         tristate "HIMAX HM852xD serious i2c touchscreen"
-		depends on I2C
-		help
-		This enables support for HIMAX HM852xD over I2C based touchscreens.
+	depends on I2C
+	help
+	  This enables support for HIMAX HM852xD over I2C based touchscreens.
+
+config TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
+        tristate "Wake gestures for SYNAPTICS_3k based touchscreens"
+        depends on TOUCHSCREEN_SYNAPTICS_3K
+        default n
+	help
+	  This enables wake-up gestures for Synaptics_3k touchscreen driver.
 
 endif
