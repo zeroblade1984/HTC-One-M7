@@ -281,15 +281,16 @@ void sweep2wake_pwrtrigger(void) {
 	return;
 }
 
-static void reset_vars(void)
-{
+static void reset_vars(void) {
 	if (s2w_switch > 0) {
 		s2w_time[0] = 0;
 		s2w_time[1] = 0;
 		s2w_time[2] = 0;
 		s2w_hist[0] = 0;
 		s2w_hist[1] = 0;
-	} else if (dt2w_switch) {
+	}
+	
+	if (dt2w_switch) {
 		prev_time = 0;
 		prev_x = 0;
 		prev_y = 0;
@@ -300,7 +301,12 @@ static void s2w_func(int button_id) {
 	s2w_time[2] = s2w_time[1];
 	s2w_time[1] = s2w_time[0];
 	s2w_time[0] = jiffies;
-	s2w_hist[1] = s2w_hist[0];
+
+	if (scr_suspended && s2w_hist[0] == 2)
+		s2w_hist[1] = 0;
+	else
+		s2w_hist[1] = s2w_hist[0];
+
 	s2w_hist[0] = button_id;
 
 	if ((s2w_time[0]-s2w_time[2]) < S2W_TIMEOUT2 && !scr_suspended) {
@@ -2907,7 +2913,7 @@ static void synaptics_ts_button_func(struct synaptics_ts_data *ts)
 		printk("[TP] virtual key released\n");
 		vk_press = 0;
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
-		if (s2w_switch == 1 || s2w_switch == 2) {
+		if (s2w_switch > 0) {
 			s2w_func(button_id);
 		}
 
@@ -3815,9 +3821,10 @@ static int synaptics_ts_probe(
 		kthread_run(syn_fw_update_init, (void *)ts, "SYN_FW_UPDATE");
 	}
 
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
 //wakelock test
 	wake_lock_init(&s2w_wakelock, WAKE_LOCK_SUSPEND, "touchpanel_wake");
-
+#endif
 	kthread_run(syn_probe_init, (void *)ts, "SYN_PROBE_INIT");
 	return 0;
 
@@ -3843,9 +3850,10 @@ static int synaptics_ts_remove(struct i2c_client *client)
 	if(ts->sr_input_dev != NULL)
 		input_unregister_device(ts->sr_input_dev);
 	input_unregister_device(ts->input_dev);
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
 //wakelock test
 	wake_lock_destroy(&s2w_wakelock);
-
+#endif
 	synaptics_touch_sysfs_remove();
 
 	if(ts->report_data != NULL)
