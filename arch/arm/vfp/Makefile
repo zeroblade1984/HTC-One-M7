@@ -6,8 +6,9 @@
 
 # ccflags-y := -DDEBUG
 # asflags-y := -DDEBUG
+ccflags-y	:= -funsafe-math-optimizations
 
-KBUILD_AFLAGS	:=$(KBUILD_AFLAGS:-msoft-float=-Wa,-mfpu=softvfp+vfp -mfloat-abi=soft)
+KBUILD_AFLAGS	:=$(KBUILD_AFLAGS:-msoft-float=-Wa,-mfpu=neon-vfpv4 -mfloat-abi=soft)
 LDFLAGS		+=--no-warn-mismatch
 
 obj-y			+= vfp.o
