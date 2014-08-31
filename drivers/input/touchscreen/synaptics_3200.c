@@ -38,6 +38,7 @@
 #include <linux/wait.h>
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
 #include <linux/wakelock.h>
+#include <linux/mfd/pm8xxx/vibrator.h>
 #endif
 
 #define SYN_I2C_RETRY_TIMES 10
@@ -221,10 +222,12 @@ static int last_touch_position_x = 0;
 static int last_touch_position_y = 0;
 static cputime64_t prev_time;
 static int prev_x = 0, prev_y = 0;
-static unsigned int double_tap_barrier_y = 2200;
+unsigned int double_tap_barrier_y = 2200;
 /* Pocket wake protection */
 bool pwp_switch = false;
 /* Other tunables */
+bool ges_vibrate = false;
+static int vib_strength = 18;
 bool scr_suspended = false;
 static struct wake_lock s2w_wakelock;
 static struct input_dev * sweep2wake_pwrdev;
@@ -247,6 +250,11 @@ static void sweep2wake_presspwr(struct work_struct * sweep2wake_presspwr_work) {
 				wake_unlock(&s2w_wakelock);
 			return;
 		}
+	}
+
+	if (ges_vibrate) {
+		vibrate(vib_strength);
+		ges_vibrate = false;
 	}
 
 	if (!mutex_trylock(&pwrlock)) return;
@@ -317,25 +325,30 @@ static void s2w_func(int button_id) {
 	if ((s2w_time[0]-s2w_time[1]) < S2W_TIMEOUT && (s2w_time[0]-s2w_time[1]) > S2W_START) {
 		/* Normal behaviour */
 		if (s2w_switch == 1 && (s2w_hist[1] == 1 && s2w_hist[0] == 2) && scr_suspended) {
+			ges_vibrate = true;
 			reset_vars();
 			sweep2wake_pwrtrigger();
 			pr_debug(S2W_TAG "screen ON \n");
 		} else if ((s2w_hist[1] == 2 && s2w_hist[0] == 1) && !scr_suspended) {
+			ges_vibrate = true;
 			reset_vars();
 			sweep2wake_pwrtrigger();
 			pr_debug(S2W_TAG "screen OFF \n");
 		/* Allow Sweep to sleep only */
 		} else if (s2w_switch == 2 && (s2w_hist[1] == 2 && s2w_hist[0] == 1) && !scr_suspended) {
+			ges_vibrate = true;
 			reset_vars();
 			sweep2wake_pwrtrigger();
 			pr_debug(S2W_TAG "screen OFF \n");
 		/* Allow Free stroke mode */
 		} else if (s2w_switch > 0 && s2w_allow_stroke) {
 			if (scr_suspended) {
+				ges_vibrate = true;
 				reset_vars();
 				sweep2wake_pwrtrigger();
 				pr_debug(S2W_TAG "screen ON \n");
 			} else {
+				ges_vibrate = true;
 				reset_vars();
 				sweep2wake_pwrtrigger();
 				pr_debug(S2W_TAG "screen OFF \n");
@@ -364,6 +377,7 @@ static void dt2w_func(int x, int y, cputime64_t trigger_time) {
 	} else {
 		if (((abs(x - prev_x) < DT2W_DELTA) && (abs(y - prev_y) < DT2W_DELTA))
 						|| (prev_x == 0 && prev_y == 0)) {
+			ges_vibrate = true;
 			reset_vars();
 			wake_lock_timeout(&s2w_wakelock, HZ/3);
 			sweep2wake_pwrtrigger();
