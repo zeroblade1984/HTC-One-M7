@@ -377,9 +377,9 @@ static int kgsl_pwrctrl_max_gpuclk_store(struct device *dev,
 
 	pwr = &device->pwrctrl;
 
-	ret = sscanf(buf, "%ld", &val);
-	if (ret != 1)
-		return count;
+	ret = kgsl_sysfs_store(buf, &val);
+	if (ret)
+		return ret;
 
 	mutex_lock(&device->mutex);
 	level = _get_nearest_pwrlevel(pwr, val);
@@ -417,7 +417,7 @@ static int kgsl_pwrctrl_gpuclk_store(struct device *dev,
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrctrl *pwr;
-	unsigned long val;
+	unsigned int val = 0;
 	int ret, level;
 
 	if (device == NULL)
