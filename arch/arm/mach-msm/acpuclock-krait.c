@@ -405,7 +405,7 @@ unsigned int lower_uV = 0, higher_uV = 0;
 module_param(lower_uV, uint, 0755);
 module_param(higher_uV, uint, 0755);
 static unsigned long higher_khz_thres = 1242000;
-#define MAX_UV 	175000
+#define MAX_UV 	175
 #endif
 
 static inline int calculate_vdd_core(const struct acpu_level *tgt)
@@ -420,7 +420,7 @@ static inline int calculate_vdd_core(const struct acpu_level *tgt)
 
 	under_uV = (tgt->speed.khz >= higher_khz_thres) ? higher_uV : lower_uV;
 
-	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0) - under_uV;
+	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0) - (under_uV * 1000);
 #else
 	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0);
 #endif
@@ -1207,7 +1207,7 @@ static int acpu_table_show(struct seq_file *m, void *unused)
 	int under_uV, final_uV;
 
 	/* Print Headers */
-	seq_printf(m, "CPU(MHz)  VDD(uV)\n");
+	seq_printf(m, "CPU(MHz)  VDD(mV)\n");
 
 	for (level = drv.acpu_freq_tbl; level->speed.khz != 0; level++) {
 		if (!level->use_for_scaling)
@@ -1217,7 +1217,7 @@ static int acpu_table_show(struct seq_file *m, void *unused)
 		seq_printf(m, "%7luMHz  ", level->speed.khz / 1000);
 
 		under_uV = (level->speed.khz >= higher_khz_thres) ? higher_uV : lower_uV;
-		final_uV = level->vdd_core + (enable_boost ? drv.boost_uv : 0) - under_uV;
+		final_uV = level->vdd_core + (enable_boost ? drv.boost_uv : 0) - (under_uV * 1000);
 
 		if (final_uV > VDD_MAX)
 			final_uV = VDD_MAX;
@@ -1225,7 +1225,7 @@ static int acpu_table_show(struct seq_file *m, void *unused)
 			final_uV = VDD_MIN;
 
 		/* Print core voltage final information */
-		seq_printf(m, "%10duV\n", final_uV);
+		seq_printf(m, "%10dmV\n", final_uV / 1000);
 
 	}
 
