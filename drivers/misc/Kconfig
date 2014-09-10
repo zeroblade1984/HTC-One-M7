@@ -725,9 +725,15 @@ config RESET_BY_CABLE_IN
         default n
 
 config USB_OTG_HOST_CHG
-		boolean "Host mode supports charging"
-		depends on USB_OTG_HOST
-		default n
+	boolean "Host mode supports charging"
+	depends on USB_OTG_HOST
+	default n
+
+config BLX
+	bool "Support for Battery Life eXtender"
+	default n
+	help
+	  Say Y here to enable Battery Life eXtender
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
