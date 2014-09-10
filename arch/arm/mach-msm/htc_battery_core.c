@@ -194,6 +194,7 @@ static int htc_battery_get_charging_status(void)
 	case CHARGER_MHL_AC:
 	case CHARGER_DETECTING:
 	case CHARGER_UNKNOWN_USB:
+	case CHARGER_NOTIFY:
 		if (battery_core_info.htc_charge_full)
 			ret = POWER_SUPPLY_STATUS_FULL;
 		else {
@@ -609,6 +610,7 @@ static struct device_attribute htc_battery_attrs[] = {
 	HTC_BATTERY_ATTR(pj_exist),
 	HTC_BATTERY_ATTR(pj_status),
 	HTC_BATTERY_ATTR(pj_level),
+	HTC_BATTERY_ATTR(batt_cable_in),
 
 	__ATTR(batt_attr_text, S_IRUGO, htc_battery_show_batt_attr, NULL),
 	__ATTR(batt_power_meter, S_IRUGO, htc_battery_show_cc_attr, NULL),
@@ -862,6 +864,12 @@ static ssize_t htc_battery_show_property(struct device *dev,
 	case PJ_LEVEL:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				battery_core_info.rep.pj_level);
+		break;
+	case BATT_CABLEIN:
+		if(battery_core_info.rep.charging_source == CHARGER_BATTERY)
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", 0);
+		else
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", 1);
 		break;
 	default:
 		i = -EINVAL;

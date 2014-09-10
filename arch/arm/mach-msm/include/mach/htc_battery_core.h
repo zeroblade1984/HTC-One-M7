@@ -54,6 +54,7 @@ enum {
 	PJ_EXIST,
 	PJ_STATUS,
 	PJ_LEVEL,
+	BATT_CABLEIN,
 };
 
 enum htc_batt_rt_attr {

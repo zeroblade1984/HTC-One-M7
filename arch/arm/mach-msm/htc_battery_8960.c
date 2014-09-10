@@ -506,6 +506,10 @@ int htc_charger_event_notify(enum htc_charger_event event)
 		latest_pj_src = PJ_OUT;
 		htc_batt_schedule_batt_info_update();
 		break;
+	case HTC_CHARGER_EVENT_SRC_CABLE_INSERT_NOTIFY:
+		latest_chg_src = CHARGER_NOTIFY;
+		htc_batt_schedule_batt_info_update();
+		break;
 	default:
 		pr_info("[BATT] unsupported charger event(%d)\n", event);
 		break;
@@ -707,6 +711,10 @@ static void cable_status_notifier_func(enum usb_connect_type online)
 	case CONNECT_TYPE_MHL_AC:
 		BATT_LOG("mhl_ac");
 		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_MHL_AC);
+		break;
+	case CONNECT_TYPE_NOTIFY:
+		BATT_LOG("cable insert notify");
+		htc_charger_event_notify(HTC_CHARGER_EVENT_SRC_CABLE_INSERT_NOTIFY);
 		break;
 	default:
 		BATT_LOG("unsupported connect_type=%d", online);
