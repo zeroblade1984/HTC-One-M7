@@ -307,8 +307,6 @@ else
 obj-$(CONFIG_ARCH_MSM8960) += acpuclock-8960.o
 endif
 
-obj-$(CONFIG_HAS_MACH_MEMUTILS) += memutils/
-
 obj-$(CONFIG_ARCH_RANDOM) += early_random.o
 
 obj-$(CONFIG_ARCH_MSM8960) += memory_topology.o
@@ -325,6 +323,9 @@ board-k2_cl-all-objs +=  board-k2_cl-pmic.o board-k2_cl-storage.o board-k2_cl-gp
 board-k2_plc_cl-all-objs +=  board-k2_plc_cl-pmic.o board-k2_plc_cl-storage.o board-k2_plc_cl-gpiomux.o devices-8930.o
 board-tc2-all-objs +=  board-tc2-pmic.o board-tc2-storage.o board-tc2-gpiomux.o devices-8930.o
 board-zara-all-objs +=  board-zara-pmic.o board-zara-storage.o board-zara-gpiomux.o devices-8930.o
+board-zara_cl-all-objs +=  board-zara_cl-pmic.o board-zara_cl-storage.o board-zara_cl-gpiomux.o devices-8930.o
+board-zara_wl-all-objs +=  board-zara_cl-pmic.o board-zara_cl-storage.o board-zara_cl-gpiomux.o devices-8930.o
+board-cp5_wl-all-objs +=  board-cp5_wl-pmic.o board-cp5_wl-storage.o board-cp5_wl-gpiomux.o devices-8930.o
 board-m4-all-objs +=  board-m4-pmic.o board-m4-storage.o board-m4-gpiomux.o devices-8930.o
 board-zip_cl-all-objs +=  board-zip_cl-pmic.o board-zip_cl-storage.o board-zip_cl-gpiomux.o devices-8930.o
 board-k2_u-all-objs +=  board-k2_u-pmic.o board-k2_u-storage.o board-k2_u-gpiomux.o devices-8930.o
@@ -386,6 +387,9 @@ board-dlp_dwg-all-objs += board-dlp_china-display.o board-dlp_china-gpu.o
 board-operaul-all-objs += board-operaul-display.o board-operaul-gpu.o
 board-tc2-all-objs += board-tc2-display.o board-tc2-gpu.o
 board-zara-all-objs += board-zara-display.o board-zara-gpu.o
+board-zara_cl-all-objs += board-zara_cl-display.o board-zara_cl-gpu.o
+board-zara_wl-all-objs += board-zara_cl-display.o board-zara_cl-gpu.o
+board-cp5_wl-all-objs += board-cp5_wl-display.o board-cp5_wl-gpu.o
 board-m4-all-objs += board-m4-display.o board-m4-gpu.o
 board-zip_cl-all-objs += board-zip_cl-display.o board-zip_cl-gpu.o
 board-k2_cl-all-objs += board-k2-display.o board-k2-gpu.o
@@ -422,6 +426,9 @@ board-t6ul-all-objs += board-t6china-camera.o
 board-t6wl-all-objs += board-t6china-camera.o
 board-t6whl-all-objs += board-t6china-camera.o
 obj-$(CONFIG_MACH_ZARA) += board-zara-camera.o
+obj-$(CONFIG_MACH_ZARA_CL) += board-zara_cl-camera.o
+obj-$(CONFIG_MACH_ZARA_WL) += board-zara_cl-camera.o
+obj-$(CONFIG_MACH_CP5_WL) += board-cp5_wl-camera.o
 endif
 obj-$(CONFIG_MACH_MSM8960_SIM) += board-8960-all.o board-8960-regulator.o
 obj-$(CONFIG_MACH_MSM8960_RUMI3) += board-8960-all.o board-8960-regulator.o
@@ -542,8 +549,20 @@ obj-$(CONFIG_MACH_ZARA) += htc_bdaddress.o board-zara-rfkill.o htc_sleep_clk.o h
 obj-$(CONFIG_MACH_ZARA) += board-zara-keypad.o
 obj-$(CONFIG_MACH_ZARA) += board-zara-mmc.o board-zara-wifi.o htc_wifi_nvs.o
 
+obj-$(CONFIG_MACH_ZARA_CL) += board-zara_cl.o board-zara_cl-all.o board-zara_cl-regulator.o board-zara_cl-audio.o
+obj-$(CONFIG_MACH_ZARA_CL) += htc_bdaddress.o board-zara_cl-rfkill.o htc_sleep_clk.o htc_util.o
+obj-$(CONFIG_MACH_ZARA_CL) += board-zara_cl-keypad.o
+obj-$(CONFIG_MACH_ZARA_CL) += board-zara_cl-mmc.o board-zara_cl-wifi.o htc_wifi_nvs.o
 
+obj-$(CONFIG_MACH_ZARA_WL) += board-zara_cl.o board-zara_cl-all.o board-zara_cl-regulator.o board-zara_cl-audio.o
+obj-$(CONFIG_MACH_ZARA_WL) += htc_bdaddress.o board-zara_cl-rfkill.o htc_sleep_clk.o htc_util.o
+obj-$(CONFIG_MACH_ZARA_WL) += board-zara_cl-keypad.o
+obj-$(CONFIG_MACH_ZARA_WL) += board-zara_cl-mmc.o board-zara_cl-wifi.o htc_wifi_nvs.o
 
+obj-$(CONFIG_MACH_CP5_WL) += board-cp5_wl.o board-cp5_wl-all.o board-cp5_wl-regulator.o board-cp5_wl-audio.o
+obj-$(CONFIG_MACH_CP5_WL) += htc_bdaddress.o board-cp5_wl-rfkill.o htc_sleep_clk.o htc_util.o
+obj-$(CONFIG_MACH_CP5_WL) += board-cp5_wl-keypad.o
+obj-$(CONFIG_MACH_CP5_WL) += board-cp5_wl-mmc.o board-cp5_wl-wifi.o htc_wifi_nvs.o
 
 obj-$(CONFIG_MACH_M4_UL) += board-m4.o board-m4-all.o board-m4-regulator.o board-m4-audio.o
 obj-$(CONFIG_MACH_M4_UL) += htc_bdaddress.o board-m4-rfkill.o htc_sleep_clk.o htc_util.o board-m4-camera.o

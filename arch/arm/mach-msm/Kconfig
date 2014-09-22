@@ -147,7 +147,6 @@ config ARCH_MSM8960
 	select ARM_HAS_SG_CHAIN
 	select MSM_KRAIT_WFE_FIXUP
 	select MSM_IOMMU_GPU_SYNC
-	select HAS_MACH_MEMUTILS
 
 config ARCH_MSM8930
 	bool "MSM8930"
@@ -297,7 +296,6 @@ config ARCH_APQ8064_T6DXG
 	select MSM_KRAIT_WFE_FIXUP
 	select MSM_CPU_PWRCTL
 	select MSM_IOMMU_GPU_SYNC
-	select HAS_MACH_MEMUTILS
 
 config ARCH_APQ8064_DLXP
 	bool "APQ8064_DLXP"
@@ -458,6 +456,18 @@ config MACH_ZARA_CL
 	bool "ZARA_CL"
 	help
 	  Support for the HTC ZARA_CL
+
+config MACH_ZARA_WL
+	depends on ARCH_MSM8930
+	bool "ZARA_WL"
+	help
+	  Support for the HTC ZARA_WL
+
+config MACH_CP5_WL
+	depends on ARCH_MSM8930
+	bool "CP5_WL"
+	help
+	  Support for the HTC CP5_WL
 
 config MACH_K2_UL
 	depends on ARCH_MSM8930
@@ -676,6 +686,11 @@ config PERFLOCK_FIX_UP
         depends on PERFLOCK
         default y
         bool "HTC Performance Lock Fix Up"
+
+config PERFLOCK_BOOT_LOCK
+        depends on PERFLOCK
+        default n
+        bool "Boot Time Performance Lock"
 
 menu "MSM Board Selection"
 
@@ -1932,18 +1947,6 @@ config MSM_CPU_FREQ_MIN
 	default 245760
 
 endif # CPU_FREQ_MSM
-
-config USERSPACE_VOLTAGE_CONTROL
-	bool "Enable Userspace CPU Voltage Control"
-	default y
-	help
-	  Userspace Voltage Control
-
-config CPU_OVERCLOCK
-	bool "Enable CPU Frequency Overclocking option"
-	default n
-	help
-	  Krait CPU overclocking
 
 config MSM_CPU_AVS
 	bool "Enable software controlled Adaptive Voltage Scaling (AVS)"
@@ -3242,11 +3245,5 @@ config IOEXTENDER
         bool "Enable IOEXTENDER feature"
 	help
 	 To support IOEXTENDER feature
-
-config HAS_MACH_MEMUTILS
-	default y
-	bool "Motorola MSM memcpy enhancements"
-	help
-	Faster memcpy performance for Krait
 endif
 

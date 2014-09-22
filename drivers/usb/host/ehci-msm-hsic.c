@@ -777,7 +777,7 @@ static void register_usb_notification_func(struct work_struct *work)
 #define ULPI_IO_TIMEOUT_USEC	(10 * 1000)
 
 #define USB_PHY_VDD_DIG_VOL_NONE	0 
-#define USB_PHY_VDD_DIG_VOL_MIN		945000 
+#define USB_PHY_VDD_DIG_VOL_MIN		1000000 
 #define USB_PHY_VDD_DIG_VOL_MAX		1320000 
 
 #define HSIC_DBG1_REG		0x38
@@ -1592,7 +1592,8 @@ while (!kthread_should_stop()) {
 
 	dbg_log_event(NULL, "Resume RH", 0);
 
-	pr_debug("%s : Resume RH\n", __func__);
+	
+	pr_info("%s : Resume RH\n", __func__);
 	if (pdata && pdata->swfi_latency) {
 		next_latency = pdata->swfi_latency + 1;
 		pm_qos_update_request(&mehci->pm_qos_req_dma, next_latency);

@@ -46,7 +46,6 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/initval.h>
-#include <linux/ratelimit.h>
 
 #include <trace/events/asoc.h>
 int soc_dpcm_runtime_update(struct snd_soc_dapm_widget *);
@@ -747,7 +746,7 @@ static int is_connected_output_ep(struct snd_soc_dapm_widget *widget,
 	widget->outputs = con;
 
 	if (widget->outputs <= 0) {
-		dev_warn_ratelimited(widget->dapm->dev, "%s: return widget->outputs <=0 \n", __func__);
+		dev_warn(widget->dapm->dev, "%s: return widget->outputs <=0 \n", __func__);
 	}
 	return con;
 }

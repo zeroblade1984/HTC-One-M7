@@ -249,7 +249,7 @@ static void adreno_perfcounter_start(struct adreno_device *adreno_dev)
 
 
 int adreno_perfcounter_read_group(struct adreno_device *adreno_dev,
-	struct kgsl_perfcounter_read_group *reads, unsigned int count)
+	struct kgsl_perfcounter_read_group __user *reads, unsigned int count)
 {
 	struct adreno_perfcounters *counters = adreno_dev->gpudev->perfcounters;
 	struct adreno_perfcount_group *group;
@@ -269,12 +269,6 @@ int adreno_perfcounter_read_group(struct adreno_device *adreno_dev,
 	if (reads == NULL || count == 0 || count > 100)
 		return -EINVAL;
 
-	
-	for (i = 0; i < count; i++) {
-		if (reads[i].groupid >= counters->group_count)
-			return -EINVAL;
-	}
-
 	list = kmalloc(sizeof(struct kgsl_perfcounter_read_group) * count,
 			GFP_KERNEL);
 	if (!list)
@@ -289,6 +283,11 @@ int adreno_perfcounter_read_group(struct adreno_device *adreno_dev,
 	
 	for (j = 0; j < count; j++) {
 		list[j].value = 0;
+		
+		if (list[j].groupid >= counters->group_count) {
+		ret = -EINVAL;
+		goto done;
+		}
 
 		group = &(counters->groups[list[j].groupid]);
 

@@ -103,7 +103,7 @@ static DEVICE_ATTR(htc_monitor_param, 0644,
         htc_monitor_param_get,
         htc_monitor_param_set);
 
-int init_module_htc(void)
+int init_module(void)
 {
 	int ret;
 
@@ -136,7 +136,7 @@ int init_module_htc(void)
 	return 0;
 }
 
-void cleanup_module_htc(void)
+void cleanup_module(void)
 {
 	vfree(ProcBuffer);
 
@@ -321,11 +321,11 @@ void record_probe_data(struct sock *sk, int type, size_t size, unsigned long lon
 
 static int __init monitor_init(void)
 {
-	return init_module_htc();
+	return init_module();
 }
 static void __exit monitor_exit(void)
 {
-	cleanup_module_htc();
+	cleanup_module();
 }
 
 module_init(monitor_init);

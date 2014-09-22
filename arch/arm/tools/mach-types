@@ -1243,3 +1243,5 @@ t6_u                    MACH_T6_U               T6_U                    4643
 t6_ula                  MACH_T6_ULA             T6_ULA                  4644
 t6_wl                   MACH_T6_WL              T6_WL                   4645
 t6_whl                  MACH_T6_WHL             T6_WHL                  4646
+zara_wl			MACH_ZARA_WL		ZARA_WL			4712
+cp5_wl			MACH_CP5_WL		CP5_WL			4721

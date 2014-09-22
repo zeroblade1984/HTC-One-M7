@@ -22,9 +22,6 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu.h>
 #include <linux/regulator/consumer.h>
-#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-#include <linux/debugfs.h>
-#endif
 
 #include <asm/mach-types.h>
 #include <asm/cpu.h>
@@ -40,12 +37,6 @@
 #include "acpuclock.h"
 #include "acpuclock-krait.h"
 #include "avs.h"
-
-#ifdef CONFIG_CPU_OVERCLOCK
-#define FREQ_TABLE_SIZE 42
-#else
-#define FREQ_TABLE_SIZE	35
-#endif
 
 #define CPU_FOOT_PRINT_MAGIC				0xACBDFE00
 static void set_acpuclk_foot_print(unsigned cpu, unsigned state)
@@ -366,12 +357,12 @@ static void decrease_vdd(int cpu, struct vdd_data *data,
 	}
 }
 
-static inline int calculate_vdd_mem(const struct acpu_level *tgt)
+static int calculate_vdd_mem(const struct acpu_level *tgt)
 {
 	return drv.l2_freq_tbl[tgt->l2_level].vdd_mem;
 }
 
-static inline int get_src_dig(const struct core_speed *s)
+static int get_src_dig(const struct core_speed *s)
 {
 	const int *hfpll_vdd = drv.hfpll_data->vdd;
 	const u32 low_vdd_l_max = drv.hfpll_data->low_vdd_l_max;
@@ -387,7 +378,7 @@ static inline int get_src_dig(const struct core_speed *s)
 		return hfpll_vdd[HFPLL_VDD_LOW];
 }
 
-static inline int calculate_vdd_dig(const struct acpu_level *tgt)
+static int calculate_vdd_dig(const struct acpu_level *tgt)
 {
 	int l2_pll_vdd_dig, cpu_pll_vdd_dig;
 
@@ -399,31 +390,11 @@ static inline int calculate_vdd_dig(const struct acpu_level *tgt)
 }
 
 static bool enable_boost = true;
-module_param_named(boost, enable_boost, bool, 0755);
-#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-unsigned int lower_uV = 0, higher_uV = 0;
-module_param(lower_uV, uint, 0755);
-module_param(higher_uV, uint, 0755);
-static unsigned long higher_khz_thres = 1242000;
-#define MAX_UV 	175
-#endif
+module_param_named(boost, enable_boost, bool, S_IRUGO | S_IWUSR);
 
-static inline int calculate_vdd_core(const struct acpu_level *tgt)
+static int calculate_vdd_core(const struct acpu_level *tgt)
 {
-#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-	unsigned int under_uV;
-
-	if (lower_uV > MAX_UV)
-		lower_uV = MAX_UV;
-	else if (higher_uV > MAX_UV)
-		higher_uV = MAX_UV;
-
-	under_uV = (tgt->speed.khz >= higher_khz_thres) ? higher_uV : lower_uV;
-
-	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0) - (under_uV * 1000);
-#else
 	return tgt->vdd_core + (enable_boost ? drv.boost_uv : 0);
-#endif
 }
 
 static DEFINE_MUTEX(l2_regulator_lock);
@@ -875,7 +846,7 @@ static int __cpuinit per_cpu_init(int cpu)
 			ret = -ENODEV;
 			goto err_table;
 		}
-		dev_warn(drv.dev, "CPU%d is running at an unknown rate. Defaulting to %lu KHz.\n",
+		dev_dbg(drv.dev, "CPU%d is running at an unknown rate. Defaulting to %lu KHz.\n",
 			cpu, acpu_level->speed.khz);
 	} else {
 		dev_dbg(drv.dev, "CPU%d is running at %lu KHz\n", cpu,
@@ -921,17 +892,16 @@ static void __init bus_init(const struct l2_level *l2_level)
 }
 
 #ifdef CONFIG_CPU_FREQ_MSM
-static struct cpufreq_frequency_table freq_table[NR_CPUS][FREQ_TABLE_SIZE];
+static struct cpufreq_frequency_table freq_table[NR_CPUS][35];
 
 static void __init cpufreq_table_init(void)
 {
 	int cpu;
-	int freq_cnt = 0;
 
 	for_each_possible_cpu(cpu) {
-		int i;
+		int i, freq_cnt = 0;
 		
-		for (i = 0, freq_cnt = 0; drv.acpu_freq_tbl[i].speed.khz != 0
+		for (i = 0; drv.acpu_freq_tbl[i].speed.khz != 0
 				&& freq_cnt < ARRAY_SIZE(*freq_table); i++) {
 			if (drv.acpu_freq_tbl[i].use_for_scaling) {
 				freq_table[cpu][freq_cnt].index = freq_cnt;
@@ -946,11 +916,12 @@ static void __init cpufreq_table_init(void)
 		freq_table[cpu][freq_cnt].index = freq_cnt;
 		freq_table[cpu][freq_cnt].frequency = CPUFREQ_TABLE_END;
 
+		dev_info(drv.dev, "CPU%d: %d frequencies supported\n",
+			cpu, freq_cnt);
+
 		
 		cpufreq_frequency_table_get_attr(freq_table[cpu], cpu);
 	}
-
-	dev_info(drv.dev, "CPU Frequencies Supported: %d\n", freq_cnt);
 }
 #else
 static void __init cpufreq_table_init(void) {}
@@ -1180,7 +1151,7 @@ static void __init hw_init(void)
 	l2_level = find_cur_l2_level();
 	if (!l2_level) {
 		l2_level = drv.l2_freq_tbl;
-		dev_warn(drv.dev, "L2 is running at an unknown rate. Defaulting to %lu KHz.\n",
+		dev_dbg(drv.dev, "L2 is running at an unknown rate. Defaulting to %lu KHz.\n",
 			l2_level->speed.khz);
 	} else {
 		dev_dbg(drv.dev, "L2 is running at %lu KHz\n",
@@ -1198,64 +1169,6 @@ static void __init hw_init(void)
 	bus_init(l2_level);
 }
 
-#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-#define VDD_MAX 	1300000
-#define VDD_MIN 	800000
-static int acpu_table_show(struct seq_file *m, void *unused)
-{
-	const struct acpu_level *level;
-	int under_uV, final_uV;
-
-	/* Print Headers */
-	seq_printf(m, "CPU(MHz)  VDD(mV)\n");
-
-	for (level = drv.acpu_freq_tbl; level->speed.khz != 0; level++) {
-		if (!level->use_for_scaling)
-			continue;
-
-		/* Print CPU speed information */
-		seq_printf(m, "%7luMHz  ", level->speed.khz / 1000);
-
-		under_uV = (level->speed.khz >= higher_khz_thres) ? higher_uV : lower_uV;
-		final_uV = level->vdd_core + (enable_boost ? drv.boost_uv : 0) - (under_uV * 1000);
-
-		if (final_uV > VDD_MAX)
-			final_uV = VDD_MAX;
-		else if (final_uV < VDD_MIN)
-			final_uV = VDD_MIN;
-
-		/* Print core voltage final information */
-		seq_printf(m, "%10dmV\n", final_uV / 1000);
-
-	}
-
-	return 0;
-}
-
-static int acpu_table_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, acpu_table_show, inode->i_private);
-}
-
-static const struct file_operations acpu_table_fops = {
-	.open		= acpu_table_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
-};
-
-void __init krait_uv(void) {
-	static struct dentry *base_dir;
-
-	base_dir = debugfs_create_dir("krait_uv_info", NULL);
-	if (!base_dir)
-		return;
-
-	debugfs_create_file("acpu_table", S_IRUGO, base_dir, NULL,
-				&acpu_table_fops);
-}
-#endif
-
 int __init acpuclk_krait_init(struct device *dev,
 			      const struct acpuclk_krait_params *params)
 {
@@ -1267,8 +1180,6 @@ int __init acpuclk_krait_init(struct device *dev,
 	register_hotcpu_notifier(&acpuclk_cpu_notifier);
 
 	acpuclk_krait_debug_init(&drv);
-#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-	krait_uv();
-#endif
+
 	return 0;
 }

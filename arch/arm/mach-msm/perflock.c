@@ -73,10 +73,102 @@ extern struct kobject *cpufreq_kobj;
 
 static unsigned int get_perflock_speed(void);
 static unsigned int get_cpufreq_ceiling_speed(void);
+static void print_active_locks(void);
 
+#ifdef CONFIG_PERFLOCK_SCREEN_POLICY
+static unsigned int screen_off_policy_req;
+static unsigned int screen_on_policy_req;
+static void perflock_early_suspend(struct early_suspend *handler)
+{
+	unsigned long irqflags;
+	int cpu;
+
+	spin_lock_irqsave(&policy_update_lock, irqflags);
+	if (screen_on_policy_req) {
+		screen_on_policy_req--;
+		spin_unlock_irqrestore(&policy_update_lock, irqflags);
+		return;
+	}
+	screen_off_policy_req++;
+	spin_unlock_irqrestore(&policy_update_lock, irqflags);
+
+	for_each_online_cpu(cpu) {
+		cpufreq_update_policy(cpu);
+	}
+}
+
+static void perflock_late_resume(struct early_suspend *handler)
+{
+	unsigned long irqflags;
+	int cpu;
+
+#ifdef CONFIG_MACH_HERO
+	unsigned int lock_speed = get_perflock_speed() / 1000;
+	if (lock_speed > CONFIG_PERFLOCK_SCREEN_ON_MIN)
+		acpuclk_set_rate(lock_speed * 1000, 0);
+	else
+		acpuclk_set_rate(CONFIG_PERFLOCK_SCREEN_ON_MIN * 1000, 0);
+#endif
+
+	spin_lock_irqsave(&policy_update_lock, irqflags);
+	if (screen_off_policy_req) {
+		screen_off_policy_req--;
+		spin_unlock_irqrestore(&policy_update_lock, irqflags);
+		return;
+	}
+	screen_on_policy_req++;
+	spin_unlock_irqrestore(&policy_update_lock, irqflags);
+
+	for_each_online_cpu(cpu) {
+		cpufreq_update_policy(cpu);
+	}
+}
+
+static struct early_suspend perflock_power_suspend = {
+	.suspend = perflock_early_suspend,
+	.resume = perflock_late_resume,
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
+};
+
+#if defined(CONFIG_HTC_ONMODE_CHARGING) && \
+	(defined(CONFIG_ARCH_MSM7225) || \
+	defined(CONFIG_ARCH_MSM7227) || \
+	defined(CONFIG_ARCH_MSM7201A))
+static struct early_suspend perflock_onchg_suspend = {
+	.suspend = perflock_early_suspend,
+	.resume = perflock_late_resume,
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
+};
+#endif
+
+static int __init perflock_screen_policy_init(void)
+{
+	int cpu;
+	register_early_suspend(&perflock_power_suspend);
+#if defined(CONFIG_HTC_ONMODE_CHARGING) && \
+	(defined(CONFIG_ARCH_MSM7225) || \
+	defined(CONFIG_ARCH_MSM7227) || \
+	defined(CONFIG_ARCH_MSM7201A))
+	register_onchg_suspend(&perflock_onchg_suspend);
+#endif
+	screen_on_policy_req++;
+	for_each_online_cpu(cpu) {
+		cpufreq_update_policy(cpu);
+	}
+
+	return 0;
+}
+
+late_initcall(perflock_screen_policy_init);
+#endif
+
+#if 0
+static unsigned int policy_min = CONFIG_MSM_CPU_FREQ_ONDEMAND_MIN;
+static unsigned int policy_max = CONFIG_MSM_CPU_FREQ_ONDEMAND_MAX;
+#else
 static unsigned int policy_min;
 static unsigned int policy_max;
-
+#endif
 static int param_set_cpu_min_max(const char *val, struct kernel_param *kp)
 {
 	int ret;
@@ -98,7 +190,6 @@ module_param_call(max_cpu_khz, param_set_cpu_min_max, param_get_int,
 
 static DEFINE_PER_CPU(int, stored_policy_min);
 static DEFINE_PER_CPU(int, stored_policy_max);
-
 int perflock_override(const struct cpufreq_policy *policy, const unsigned int new_freq)
 {
 	unsigned int target_min_freq = 0, target_max_freq = 0;
@@ -136,6 +227,7 @@ int perflock_override(const struct cpufreq_policy *policy, const unsigned int ne
 		if (debug_mask & PERF_CPUFREQ_LOCK_DEBUG) {
 			pr_info("%s: cpufreq lock speed %d\n",
 					__func__, lock_speed);
+			print_active_locks();
 		}
 	} else if ((cpufreq_ceiling_speed = (get_cpufreq_ceiling_speed() / 1000))) {
 		target_max_freq = cpufreq_ceiling_speed > policy_max? policy_max : cpufreq_ceiling_speed;
@@ -146,6 +238,7 @@ int perflock_override(const struct cpufreq_policy *policy, const unsigned int ne
 		if (debug_mask & PERF_CPUFREQ_LOCK_DEBUG) {
 			pr_info("%s: cpufreq_ceiling speed %d\n",
 					__func__, cpufreq_ceiling_speed);
+			print_active_locks();
 		}
 	} else {
 		
@@ -218,6 +311,21 @@ static unsigned int get_cpufreq_ceiling_speed(void)
 	}
 	spin_unlock_irqrestore(&list_lock, irqflags);
 	return cpufreq_ceiling_acpu_table[perf_level];
+}
+
+static void print_active_locks(void)
+{
+	unsigned long irqflags;
+	struct perf_lock *lock;
+
+	spin_lock_irqsave(&list_lock, irqflags);
+	list_for_each_entry(lock, &active_perf_locks, link) {
+		pr_info("active perf lock '%s'\n", lock->name);
+	}
+	list_for_each_entry(lock, &active_cpufreq_ceiling_locks, link) {
+		pr_info("active cpufreq_ceiling_locks '%s'\n", lock->name);
+	}
+	spin_unlock_irqrestore(&list_lock, irqflags);
 }
 
 void htc_print_active_perf_locks(void)
@@ -297,7 +405,6 @@ static void do_set_rate_fn(struct work_struct *work)
 }
 
 static DECLARE_WORK(do_setrate_work, do_set_rate_fn);
-
 void perf_lock(struct perf_lock *lock)
 {
 	unsigned long irqflags;
@@ -492,6 +599,29 @@ int perflock_release(const char *name)
 }
 EXPORT_SYMBOL(perflock_release);
 
+#ifdef CONFIG_PERFLOCK_BOOT_LOCK
+#define BOOT_LOCK_TIMEOUT	(60 * HZ)
+static struct perf_lock boot_perf_lock;
+
+static void do_expire_boot_lock(struct work_struct *work)
+{
+	if(is_perf_lock_active(&boot_perf_lock)) {
+		perf_unlock(&boot_perf_lock);
+		pr_info("Release 'boot-time' perf_lock\n");
+	}
+}
+static DECLARE_DELAYED_WORK(work_expire_boot_lock, do_expire_boot_lock);
+
+void release_boot_lock(void)
+{
+	if(is_perf_lock_active(&boot_perf_lock)) {
+		perf_unlock(&boot_perf_lock);
+		pr_info("Release 'boot-time' perf_lock before normal release time\n");
+	}
+}
+EXPORT_SYMBOL(release_boot_lock);
+#endif
+
 static void perf_acpu_table_fixup(void)
 {
 	int i;
@@ -567,6 +697,13 @@ static void perflock_floor_init(struct perflock_data *pdata)
 	init_local_freq_policy(policy_min, policy_max);
 	initialized = 1;
 	pr_info("perflock floor init done\n");
+#ifdef CONFIG_PERFLOCK_BOOT_LOCK
+	
+	perf_lock_init(&boot_perf_lock, TYPE_PERF_LOCK, PERF_LOCK_HIGHEST, "boot-time");
+	perf_lock(&boot_perf_lock);
+	schedule_delayed_work(&work_expire_boot_lock, BOOT_LOCK_TIMEOUT);
+	pr_info("Acquire 'boot-time' perf_lock\n");
+#endif
 
 	return;
 
