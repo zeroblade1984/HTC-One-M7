@@ -55,13 +55,6 @@ void *return_address(unsigned int level)
 	else
 		return NULL;
 }
-
-#else 
-
-#if defined(CONFIG_ARM_UNWIND)
-#warning "TODO: return_address should use unwind tables"
-#endif
-
 #endif 
 
 EXPORT_SYMBOL_GPL(return_address);
