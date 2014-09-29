@@ -1954,6 +1954,12 @@ config USERSPACE_VOLTAGE_CONTROL
 	help
 	  Userspace Voltage Control
 
+config CPU_OVERCLOCK
+	bool "Enable CPU Frequency Overclocking option"
+	default n
+	help
+	  Krait CPU overclocking
+
 config MSM_CPU_AVS
 	bool "Enable software controlled Adaptive Voltage Scaling (AVS)"
 	depends on (ARCH_MSM_SCORPION && QSD_SVS)
