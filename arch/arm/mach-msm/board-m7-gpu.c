@@ -245,8 +245,11 @@ struct platform_device device_kgsl_3d0 = {
 void __init m7_init_gpu(void)
 {
 	unsigned int version = socinfo_get_version();
-
+#ifdef CONFIG_GPU_OVERCLOCK
+	if (cpu_is_apq8064ab() || cpu_is_apq8064())
+#else
 	if (cpu_is_apq8064ab())
+#endif
 		kgsl_3d0_pdata.pwrlevel[0].gpu_freq = 450000000;
 	if (SOCINFO_VERSION_MAJOR(version) == 2) {
 		kgsl_3d0_pdata.chipid = ADRENO_CHIPID(3, 2, 0, 2);
