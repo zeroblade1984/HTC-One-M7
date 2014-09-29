@@ -147,6 +147,7 @@ config ARCH_MSM8960
 	select ARM_HAS_SG_CHAIN
 	select MSM_KRAIT_WFE_FIXUP
 	select MSM_IOMMU_GPU_SYNC
+    select HAS_MACH_MEMUTILS
 
 config ARCH_MSM8930
 	bool "MSM8930"
@@ -209,6 +210,7 @@ config ARCH_APQ8064
 	select MSM_KRAIT_WFE_FIXUP
 	select MSM_IOMMU_GPU_SYNC
 	select MSM_CPU_PWRCTL
+	select HAS_MACH_MEMUTILS
 
 config ARCH_APQ8064_M7
 	bool "APQ8064_M7"
@@ -3263,5 +3265,12 @@ config IOEXTENDER
         bool "Enable IOEXTENDER feature"
 	help
 	 To support IOEXTENDER feature
+
+config HAS_MACH_MEMUTILS
+	default n
+	bool "Motorola MSM memcpy enhancements"
+	help
+	Faster memcpy performance for Krait
+
 endif
 
