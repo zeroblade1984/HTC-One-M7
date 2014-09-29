@@ -689,11 +689,6 @@ config PERFLOCK_FIX_UP
         default y
         bool "HTC Performance Lock Fix Up"
 
-config PERFLOCK_BOOT_LOCK
-        depends on PERFLOCK
-        default n
-        bool "Boot Time Performance Lock"
-
 menu "MSM Board Selection"
 
 config MACH_HALIBUT
