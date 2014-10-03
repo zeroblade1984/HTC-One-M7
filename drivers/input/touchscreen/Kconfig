@@ -1030,4 +1030,11 @@ config TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
 	help
 	  This enables wake-up gestures for Synaptics_3k touchscreen driver.
 
+config LOGO2MENU
+        tristate "Logo2Menu for SYNAPTICS_3k based touchscreens"
+        depends on TOUCHSCREEN_SYNAPTICS_3K && TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
+        default n
+	help
+	  This enables Logo2Menu gestures for Synaptics_3k touchscreen driver.
+
 endif
