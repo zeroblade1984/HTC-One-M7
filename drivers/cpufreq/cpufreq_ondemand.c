@@ -108,21 +108,21 @@ static unsigned long input_event_boost_expired = 0;
 extern int has_boost_cpu_func;
 #endif
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
+#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
 #define TABLE_SIZE			1
 #else
 #define TABLE_SIZE			5
 #endif
 #define MAX(x,y)			(x > y ? x : y)
 #define MIN(x,y)			(x < y ? x : y)
-#define FREQ_NEED_BURST(x)		(x < 600000 ? 1 : 0)
+#define FREQ_NEED_BURST(x)	(x < 600000 ? 1 : 0)
 
 static struct cpufreq_frequency_table *tbl = NULL;
 static unsigned int *tblmap[TABLE_SIZE] __read_mostly;
 static unsigned int tbl_select[4] = {0};
 static int input_event_counter = 0;
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
+#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
 static unsigned int up_threshold_level[2] __read_mostly = {90, 90};
 static inline void switch_turbo_mode(unsigned timeout) {};
 static inline void switch_normal_mode(void) {};
@@ -847,7 +847,7 @@ static struct attribute_group dbs_attr_group = {
 };
 
 
-#ifndef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
+#ifndef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
 static inline void switch_turbo_mode(unsigned timeout)
 {
 	if (timeout > 0)
@@ -903,7 +903,7 @@ static int adjust_freq_map_table(int freq, int cnt, struct cpufreq_policy *polic
 	return (freq - lower < upper - freq)?lower:upper;
 }
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
+#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
 static void reset_freq_map_table(struct cpufreq_policy *policy)
 {
 	unsigned int real_freq;
@@ -1029,7 +1029,7 @@ static void dbs_deinit_freq_map_table(void)
 	for (i = 0; i < TABLE_SIZE; i++)
 		kfree(tblmap[i]);
 
-#ifndef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
+#ifndef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
 	del_timer(&freq_mode_timer);
 #endif
 }
