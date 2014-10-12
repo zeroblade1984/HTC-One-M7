@@ -42,7 +42,7 @@
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
-#define DBS_INPUT_EVENT_MIN_FREQ		(1026000)
+#define DBS_INPUT_MIN_FREQ			(1026000)
 #define DEF_FREQ_DOWN_STEP			(432000)
 #define DEF_FREQ_DOWN_STEP_BARRIER		(1350000)
 #define DBS_SWITCH_MODE_TIMEOUT			(1000)
@@ -682,15 +682,15 @@ skip_this_cpu_bypass:
 	return count;
 }
 
-static int input_event_min_freq_array[NR_CPUS] = {[0 ... NR_CPUS-1] = DBS_INPUT_EVENT_MIN_FREQ} ;
+static int touch_freq_array[NR_CPUS] = {[0 ... NR_CPUS-1] = DBS_INPUT_MIN_FREQ} ;
 
-static ssize_t show_input_event_min_freq(struct kobject *kobj, struct attribute *attr, char *buf)
+static ssize_t show_touch_freq(struct kobject *kobj, struct attribute *attr, char *buf)
 {
 	int i = 0;
 	int shift = 0;
 	char *buf_pos = buf;
 	for ( i = 0 ; i < NR_CPUS; i++) {
-		shift = sprintf(buf_pos,"%d,",input_event_min_freq_array[i]);
+		shift = sprintf(buf_pos,"%d,",touch_freq_array[i]);
 		buf_pos += shift;
 	}
 	*(buf_pos-1) = '\n';
@@ -699,20 +699,20 @@ static ssize_t show_input_event_min_freq(struct kobject *kobj, struct attribute 
 	return strlen(buf);
 }
 
-static ssize_t store_input_event_min_freq(struct kobject *a, struct attribute *b,
+static ssize_t store_touch_freq(struct kobject *a, struct attribute *b,
 		const char *buf, size_t count)
 {
 	int ret = 0;
 	if (NR_CPUS == 1)
-		ret = sscanf(buf,"%u",&input_event_min_freq_array[0]);
+		ret = sscanf(buf,"%u",&touch_freq_array[0]);
 	else if (NR_CPUS == 2)
-		ret = sscanf(buf,"%u,%u",&input_event_min_freq_array[0],
-				&input_event_min_freq_array[1]);
+		ret = sscanf(buf,"%u,%u",&touch_freq_array[0],
+				&touch_freq_array[1]);
 	else if (NR_CPUS == 4)
-		ret = sscanf(buf, "%u,%u,%u,%u", &input_event_min_freq_array[0],
-				&input_event_min_freq_array[1],
-				&input_event_min_freq_array[2],
-				&input_event_min_freq_array[3]);
+		ret = sscanf(buf, "%u,%u,%u,%u", &touch_freq_array[0],
+				&touch_freq_array[1],
+				&touch_freq_array[2],
+				&touch_freq_array[3]);
 	if (ret < NR_CPUS)
 		return -EINVAL;
 
@@ -813,7 +813,7 @@ define_one_global_rw(down_differential_multi_core);
 define_one_global_rw(optimal_freq);
 define_one_global_rw(up_threshold_any_cpu_load);
 define_one_global_rw(sync_freq);
-define_one_global_rw(input_event_min_freq);
+define_one_global_rw(touch_freq);
 define_one_global_rw(multi_phase_freq_tbl);
 define_one_global_rw(two_phase_freq);
 define_one_global_rw(freq_down_step);
@@ -833,7 +833,7 @@ static struct attribute *dbs_attributes[] = {
 	&optimal_freq.attr,
 	&up_threshold_any_cpu_load.attr,
 	&sync_freq.attr,
-	&input_event_min_freq.attr,
+	&touch_freq.attr,
 	&multi_phase_freq_tbl.attr,
 	&two_phase_freq.attr,
 	&freq_down_step.attr,
@@ -1368,7 +1368,7 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 	int i;
 	struct cpu_dbs_info_s *dbs_info;
 	unsigned long flags;
-	int input_event_min_freq = 0;
+	int touch_freq = 0;
 
 	if ((dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MAXLEVEL) ||
 		(dbs_tuners_ins.powersave_bias == POWERSAVE_BIAS_MINLEVEL)) {
@@ -1380,7 +1380,7 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 	} else if (type == EV_ABS && code == ABS_MT_TRACKING_ID) {
 		if (value != -1) {
 			input_event_counter++;
-			input_event_min_freq = input_event_min_freq_array[num_online_cpus() - 1];
+			touch_freq = touch_freq_array[num_online_cpus() - 1];
 			switch_turbo_mode(0);
 		} else {		
 			if (likely(input_event_counter > 0))
@@ -1388,18 +1388,18 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 			else
 				pr_warning("dbs_input_event: Touch isn't paired!\n");
 
-			input_event_min_freq = 0;
+			touch_freq = 0;
 			switch_turbo_mode(DBS_SWITCH_MODE_TIMEOUT);
 		}
 	} else if (type == EV_KEY && value == 1 &&
 			(code == KEY_POWER || code == KEY_VOLUMEUP || code == KEY_VOLUMEDOWN))
 	{
-		input_event_min_freq = input_event_min_freq_array[num_online_cpus() - 1];
+		touch_freq = touch_freq_array[num_online_cpus() - 1];
 		
 		switch_turbo_mode(DBS_SWITCH_MODE_TIMEOUT);
 	}
 
-	if (input_event_min_freq > 0) {
+	if (touch_freq > 0) {
 		spin_lock_irqsave(&input_boost_lock, flags);
 		input_event_boost = true;
 		input_event_boost_expired = jiffies + usecs_to_jiffies(dbs_tuners_ins.sampling_rate * 4);
@@ -1408,8 +1408,8 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 		for_each_online_cpu(i) {
 			dbs_info = &per_cpu(od_cpu_dbs_info, i);
 			if (dbs_info->cur_policy &&		
-					dbs_info->cur_policy->cur < input_event_min_freq) {
-					dbs_info->input_event_freq = input_event_min_freq;
+					dbs_info->cur_policy->cur < touch_freq) {
+					dbs_info->input_event_freq = touch_freq;
 					wake_up_process(per_cpu(up_task, i));
 			}
 		}
