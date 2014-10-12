@@ -22,9 +22,6 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu.h>
 #include <linux/regulator/consumer.h>
-#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-#include <linux/debugfs.h>
-#endif
 
 #include <asm/mach-types.h>
 #include <asm/cpu.h>
@@ -40,6 +37,23 @@
 #include "acpuclock.h"
 #include "acpuclock-krait.h"
 #include "avs.h"
+
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+#include <linux/debugfs.h>
+
+#define MAX_UV	100
+#define MAX_VDD_LEVEL	1300000
+#define MIN_VDD_LEVEL	850000
+
+unsigned int lower_uV = 0, higher_uV = 0;
+static unsigned long higher_khz_thres = 1242000;
+#endif
+
+#ifdef CONFIG_CPU_OVERCLOCK
+#define FREQ_TABLE_SIZE 45
+#else
+#define FREQ_TABLE_SIZE	35
+#endif
 
 #define CPU_FOOT_PRINT_MAGIC				0xACBDFE00
 static void set_acpuclk_foot_print(unsigned cpu, unsigned state)
@@ -395,11 +409,8 @@ static inline int calculate_vdd_dig(const struct acpu_level *tgt)
 static bool enable_boost = true;
 module_param_named(boost, enable_boost, bool, S_IWUSR | S_IRUGO);
 #ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-#define MAX_UV	100
-unsigned int lower_uV = 0, higher_uV = 0;
 module_param(lower_uV, uint, S_IWUSR | S_IRUGO);
 module_param(higher_uV, uint, S_IWUSR | S_IRUGO);
-static unsigned long higher_khz_thres = 1242000;
 #endif
 
 static inline int calculate_vdd_core(const struct acpu_level *tgt)
@@ -911,7 +922,7 @@ static void __init bus_init(const struct l2_level *l2_level)
 }
 
 #ifdef CONFIG_CPU_FREQ_MSM
-static struct cpufreq_frequency_table freq_table[NR_CPUS][35];
+static struct cpufreq_frequency_table freq_table[NR_CPUS][FREQ_TABLE_SIZE];
 
 static void __init cpufreq_table_init(void)
 {
@@ -1189,8 +1200,6 @@ static void __init hw_init(void)
 }
 
 #ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
-#define MAX_VDD_LEVEL	1300000
-#define MIN_VDD_LEVEL	850000
 static int acpu_table_show(struct seq_file *m, void *unused)
 {
 	const struct acpu_level *level;
