@@ -28,8 +28,6 @@
 #include <linux/kthread.h>
 #include <linux/slab.h>
 
-#define CREATE_TRACE_POINTS
-#include <trace/events/cpufreq_ondemand.h>
 
 #define DEF_SAMPLING_RATE			(50000)
 #define DEF_FREQUENCY_DOWN_DIFFERENTIAL		(10)
@@ -1061,16 +1059,11 @@ static void dbs_freq_increase(struct cpufreq_policy *p, unsigned load, unsigned 
 	if (dbs_tuners_ins.powersave_bias)
 		freq = powersave_bias_target(p, freq, CPUFREQ_RELATION_H);
 	else if (p->cur == p->max) {
-		trace_cpufreq_ondemand_already (p->cpu, load, p->cur, p->cur, p->max);
 		return;
 	}
 
-	trace_cpufreq_ondemand_target (p->cpu, load, freq, p->cur, freq);
-
 	__cpufreq_driver_target(p, freq, (dbs_tuners_ins.powersave_bias || freq < p->max) ?
 			CPUFREQ_RELATION_L : CPUFREQ_RELATION_H);
-
-	trace_cpufreq_ondemand_setspeed (p->cpu, freq, p->cur);
 }
 
 int input_event_boosted(void)
@@ -1226,10 +1219,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		return;
 	}
 
-	if (input_event_boosted()) {
-		trace_cpufreq_ondemand_already (policy->cpu, max_cur_load, policy->cur, policy->cur, policy->cur);
+	if (input_event_boosted())
 		return;
-	}
 
 	if (num_online_cpus() > 1) {
 		if (max_load_freq > dbs_tuners_ins.up_threshold_multi_core *
@@ -1237,18 +1228,15 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			if (policy->cur < dbs_tuners_ins.optimal_freq)
 				dbs_freq_increase(policy, max_cur_load,
 						dbs_tuners_ins.optimal_freq);
-			else
-				trace_cpufreq_ondemand_already (policy->cpu, max_cur_load, policy->cur, policy->cur, policy->cur);
+			
 			return;
 		}
 	}
 
 	
 	
-	if (policy->cur == policy->min){
-		trace_cpufreq_ondemand_already (policy->cpu, max_cur_load, policy->cur, policy->cur, policy->min);
+	if (policy->cur == policy->min)
 		return;
-	}
 
 	if (max_load_freq <
 	    (dbs_tuners_ins.up_threshold - dbs_tuners_ins.down_differential) *
@@ -1297,11 +1285,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			freq_next = new_freq_next;
 		}
 
-		trace_cpufreq_ondemand_target (policy->cpu, max_cur_load, freq_next, policy->cur, freq_next);
-
 		__cpufreq_driver_target(policy, freq_next, CPUFREQ_RELATION_L);
 
-		trace_cpufreq_ondemand_setspeed (policy->cpu, freq_next, policy->cur);
 	}
 }
 
@@ -1610,7 +1595,6 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		}
 
 		mutex_unlock(&dbs_mutex);
-		trace_cpufreq_ondemand_target (cpu, 0, 0, 0, 0);
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
