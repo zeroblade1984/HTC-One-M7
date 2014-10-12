@@ -1,0 +1,21 @@
+--- kernel/workqueue.c
++++ kernel/workqueue.c
+@@ -44,6 +44,7 @@
+ #include <linux/idr.h>
+ #include <linux/bug.h>
+ #include <linux/hashtable.h>
++#include <linux/moduleparam.h>
+ 
+ #include "workqueue_sched.h"
+ 
+@@ -3158,6 +3168,10 @@
+ 	unsigned int cpu;
+ 	size_t namelen;
+ 
++	/* see the comment above the definition of WQ_POWER_EFFICIENT */
++	if ((flags & WQ_POWER_EFFICIENT) && wq_power_efficient)
++		flags |= WQ_UNBOUND;
++
+ 	/* determine namelen, allocate wq and format name */
+ 	va_start(args, lock_name);
+ 	va_copy(args1, args);

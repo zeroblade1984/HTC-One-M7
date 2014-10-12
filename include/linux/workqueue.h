@@ -207,8 +207,10 @@ enum {
 	WQ_HIGHPRI		= 1 << 4, 
 	WQ_CPU_INTENSIVE	= 1 << 5, 
 
-	WQ_DRAINING		= 1 << 6, 
-	WQ_RESCUER		= 1 << 7, 
+	WQ_POWER_EFFICIENT	= 1 << 6,
+
+	WQ_DRAINING		= 1 << 7, 
+	WQ_RESCUER		= 1 << 8, 
 
 	WQ_MAX_ACTIVE		= 512,	  
 	WQ_MAX_UNBOUND_PER_CPU	= 4,	  
