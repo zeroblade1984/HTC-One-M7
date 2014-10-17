@@ -371,6 +371,8 @@ void cpu_init(void)
 		BUG();
 	}
 
+	set_my_cpu_offset(per_cpu_offset(cpu));
+
 	cpu_proc_init();
 
 #ifdef CONFIG_THUMB2_KERNEL
