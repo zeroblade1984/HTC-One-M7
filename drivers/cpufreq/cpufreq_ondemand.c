@@ -43,7 +43,7 @@
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
 #define DBS_INPUT_MIN_FREQ			(1026000)
-#define DEF_FREQ_DOWN_STEP			(432000)
+#define DEF_FREQ_DOWN_STEP			(3)
 #define DEF_FREQ_DOWN_STEP_BARRIER		(1350000)
 #define DBS_SWITCH_MODE_TIMEOUT			(1000)
 #define MIN_SAMPLING_RATE_RATIO			(2)
@@ -744,7 +744,6 @@ static ssize_t show_multi_phase_freq_tbl(struct kobject *kobj, struct attribute 
 static ssize_t store_multi_phase_freq_tbl(struct kobject *a, struct attribute *b,
 				  const char *buf, size_t count)
 {
-
 	return 0;
 }
 
@@ -934,8 +933,7 @@ static void dbs_init_freq_map_table(struct cpufreq_policy *policy)
 {
 	tbl = cpufreq_frequency_get_table(0);
 
-	for (freq_cnt = 0; (tbl[freq_cnt].frequency != CPUFREQ_TABLE_END); freq_cnt++)
-		;
+	for (freq_cnt = 0; (tbl[freq_cnt].frequency != CPUFREQ_TABLE_END); freq_cnt++);
 
 	tblmap[0] = kmalloc(sizeof(unsigned int) * freq_cnt, GFP_KERNEL);
 	BUG_ON(!tblmap[0]);
@@ -1070,7 +1068,6 @@ int input_event_boosted(void)
 {
 	unsigned long flags;
 
-	
 	spin_lock_irqsave(&input_boost_lock, flags);
 	if (input_event_boost) {
 		if (time_before(jiffies, input_event_boost_expired)) {
@@ -1182,7 +1179,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		unsigned int avg_load = (prev_load + max_cur_load) >> 1;
 		int index = get_cpu_freq_index(policy->cur);
 
-		
 		if (FREQ_NEED_BURST(policy->cur) && max_cur_load > up_threshold_level[0]) {
 			freq_next = tblmap[tbl_select[3]][index];
 		}
@@ -1268,8 +1264,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 		if (dbs_tuners_ins.freq_down_step) {
 			unsigned int new_freq_next = freq_next;
-			if ((policy->cur - freq_next) > dbs_tuners_ins.freq_down_step) {
-				new_freq_next = policy->cur - dbs_tuners_ins.freq_down_step;
+			unsigned int base_freq = (108000 * dbs_tuners_ins.freq_down_step);
+			if ((policy->cur - freq_next) > base_freq) {
+				new_freq_next = policy->cur - base_freq;
 			}
 
 			if (dbs_tuners_ins.freq_down_step_barrier) {
@@ -1314,9 +1311,6 @@ static void do_dbs_timer(struct work_struct *work)
 		} else {
 			delay = usecs_to_jiffies(dbs_tuners_ins.sampling_rate
 				* dbs_info->rate_mult);
-
-		//	if (num_online_cpus() > 1)
-		//		delay -= jiffies % delay;
 		}
 	} else {
 		delay = dbs_info->freq_lo_jiffies;
