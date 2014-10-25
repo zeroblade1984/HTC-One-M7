@@ -141,7 +141,7 @@ void __cpu_die(unsigned int cpu)
 	}
 	pr_debug("CPU%u: shutdown\n", cpu);
 
-	if (platform_cpu_kill(cpu))
+	if (!platform_cpu_kill(cpu))
 		printk("CPU%u: unable to kill\n", cpu);
 }
 
