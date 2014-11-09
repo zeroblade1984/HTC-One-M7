@@ -117,6 +117,4 @@ static inline void prefetch(const void *ptr)
 
 #endif
 
-#include <asm-generic/processor.h>
-
 #endif 

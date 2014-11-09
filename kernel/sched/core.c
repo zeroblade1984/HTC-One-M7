@@ -77,7 +77,6 @@
 #include <asm/tlb.h>
 #include <asm/irq_regs.h>
 #include <asm/mutex.h>
-#include <asm/relaxed.h>
 #ifdef CONFIG_PARAVIRT
 #include <asm/paravirt.h>
 #endif
@@ -267,18 +266,7 @@ __read_mostly int scheduler_running;
 
 int sysctl_sched_rt_runtime = 950000;
 
-/*
- * Number of sched_yield calls that result in a thread yielding
- * to itself before a sleep is injected in its next sched_yield call
- * Setting this to -1 will disable adding sleep in sched_yield
- */
-const_debug int sysctl_sched_yield_sleep_threshold = 4;
 
-/*
- * Sleep duration in us used when sched_yield_sleep_threshold
- * is exceeded.
- */
-const_debug unsigned int sysctl_sched_yield_sleep_duration = 50;
 
 static inline struct rq *__task_rq_lock(struct task_struct *p)
 	__acquires(rq->lock)
@@ -944,10 +932,9 @@ unsigned long wait_task_inactive(struct task_struct *p, long match_state)
 		rq = task_rq(p);
 
 		while (task_running(rq, p)) {
-			if (match_state && unlikely(cpu_relaxed_read_long
-				(&(p->state)) != match_state))
+			if (match_state && unlikely(p->state != match_state))
 				return 0;
-			cpu_read_relax();
+			cpu_relax();
 		}
 
 		rq = task_rq_lock(p, &flags);
@@ -1269,12 +1256,12 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 		goto stat;
 
 #ifdef CONFIG_SMP
-	while (cpu_relaxed_read(&(p->on_cpu))) {
+	while (p->on_cpu) {
 #ifdef __ARCH_WANT_INTERRUPTS_ON_CTXSW
 		if (ttwu_activate_remote(p, wake_flags))
 			goto stat;
 #else
-		cpu_read_relax();
+		cpu_relax();
 #endif
 	}
 	smp_rmb();
@@ -2480,16 +2467,13 @@ need_resched:
 	if (likely(prev != next)) {
 		rq->nr_switches++;
 		rq->curr = next;
-		prev->yield_count = 0;
 		++*switch_count;
 
 		context_switch(rq, prev, next); 
 		cpu = smp_processor_id();
 		rq = cpu_rq(cpu);
-	} else {
-		prev->yield_count++;
+	} else
 		raw_spin_unlock_irq(&rq->lock);
-	}
 
 	post_schedule(rq);
 
@@ -2994,24 +2978,6 @@ int idle_cpu(int cpu)
 	return 1;
 }
 
-int idle_cpu_relaxed(int cpu)
-{
-	struct rq *rq = cpu_rq(cpu);
-
-	if (cpu_relaxed_read_long(&rq->curr) != rq->idle)
-		return 0;
-
-	if (cpu_relaxed_read_long(&rq->nr_running))
-		return 0;
-
-#ifdef CONFIG_SMP
-	if (!llist_empty_relaxed(&rq->wake_list))
-		return 0;
-#endif
-
-	return 1;
-}
-
 struct task_struct *idle_task(int cpu)
 {
 	return cpu_rq(cpu)->idle;
@@ -3428,8 +3394,6 @@ SYSCALL_DEFINE0(sched_yield)
 	struct rq *rq = this_rq_lock();
 
 	schedstat_inc(rq, yld_count);
-	if (rq->curr->yield_count == sysctl_sched_yield_sleep_threshold)
-		schedstat_inc(rq, yield_sleep_count);
 	current->sched_class->yield_task(rq);
 
 	__release(rq->lock);
@@ -3437,11 +3401,7 @@ SYSCALL_DEFINE0(sched_yield)
 	do_raw_spin_unlock(&rq->lock);
 	sched_preempt_enable_no_resched();
 
-	if (rq->curr->yield_count == sysctl_sched_yield_sleep_threshold)
-		usleep_range(sysctl_sched_yield_sleep_duration,
-				sysctl_sched_yield_sleep_duration + 5);
-	else
-		schedule();
+	schedule();
 
 	return 0;
 }
