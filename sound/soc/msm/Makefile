@@ -116,6 +116,6 @@ snd-soc-qdsp6v2-objs := msm-dai-fe.o msm-dai-stub.o
 obj-$(CONFIG_SND_SOC_QDSP6V2) += snd-soc-qdsp6v2.o
 
 #//HTC_AUD_START LPA5
-CFLAGS_msm-compr-q6.o := -DDEBUG
-CFLAGS_msm-pcm-lpa.o := -DDEBUG
+#CFLAGS_msm-compr-q6.o := -DDEBUG
+#CFLAGS_msm-pcm-lpa.o := -DDEBUG
 #//HTC_AUD_END LPA5

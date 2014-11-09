@@ -27,9 +27,9 @@ obj-$(CONFIG_MSM_QDSP6V2_CODECS) += audio_mp3.o audio_amrnb.o audio_amrwb.o audi
 obj-$(CONFIG_MSM_ULTRASOUND) += ultrasound/
 
 #HTC_AUD_START
-ifdef CONFIG_ARCH_MSM8X60
-CFLAGS_audio_mp3.o := -DDEBUG
-CFLAGS_audio_aac.o := -DDEBUG
-CFLAGS_audio_utils_aio.o := -DDEBUG
-endif
+#ifdef CONFIG_ARCH_MSM8X60
+#CFLAGS_audio_mp3.o := -DDEBUG
+#CFLAGS_audio_aac.o := -DDEBUG
+#CFLAGS_audio_utils_aio.o := -DDEBUG
+#endif
 #HTC_AUD_END
