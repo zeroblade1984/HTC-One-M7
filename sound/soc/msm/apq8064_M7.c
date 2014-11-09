@@ -51,6 +51,7 @@
 
 #define BTSCO_RATE_8KHZ 8000
 #define BTSCO_RATE_16KHZ 16000
+#define BTSCO_RATE_48KHZ 48000
 
 #define BOTTOM_SPK_AMP_POS	0x1
 #define BOTTOM_SPK_AMP_NEG	0x2
@@ -84,13 +85,9 @@
 
 #ifdef CONFIG_MACH_M7_WLJ
 #define RCV_PAMP_PMGPIO	24
-#else
-#define RCV_PAMP_GPIO    67
-#endif
-
-#ifdef CONFIG_MACH_M7_WLJ
 #define RCV_SPK_SEL_PMGPIO    5
 #else
+#define RCV_PAMP_GPIO    67
 #define RCV_SPK_SEL_PMGPIO    24
 #endif
 
@@ -1206,6 +1203,9 @@ static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
 		break;
 	case 1:
 		msm_btsco_rate = BTSCO_RATE_16KHZ;
+		break;
+	case 2:
+		msm_btsco_rate = BTSCO_RATE_48KHZ;
 		break;
 	default:
 		msm_btsco_rate = BTSCO_RATE_8KHZ;
