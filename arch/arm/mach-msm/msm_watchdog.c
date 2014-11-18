@@ -29,6 +29,7 @@
 #include <linux/sched.h>
 #include <mach/msm_iomap.h>
 #include <asm/mach-types.h>
+#include <asm/cacheflush.h>
 #include <mach/scm.h>
 #include <mach/socinfo.h>
 #include <mach/board_htc.h>
@@ -86,6 +87,7 @@ static DECLARE_WORK(init_dogwork_struct, init_watchdog_work);
 
 void msm_wdog_bark_fin(void)
 {
+	flush_cache_all();
 	pr_crit("\nApps Watchdog bark received - Calling Panic\n");
 	panic("Apps Watchdog Bark received\n");
 }
