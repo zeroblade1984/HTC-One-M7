@@ -22,10 +22,10 @@
 #include <linux/hrtimer.h>
 #include <linux/tick.h>
 #include <linux/ktime.h>
+#include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/input.h>
 #include <linux/workqueue.h>
-#include <linux/kthread.h>
 #include <linux/slab.h>
 
 
@@ -721,8 +721,7 @@ int freq_cnt = 0;
 static ssize_t show_multi_phase_freq_tbl(struct kobject *kobj, struct attribute *attr,
 				char *buf)
 {
-	int i = 0,j = 0;
-	int shift = 0;
+	int i = 0, j = 0, shift = 0;
 	char *buf_pos = buf;
 
 	for (i = 0; i < TABLE_SIZE; i++) {
@@ -746,7 +745,6 @@ static ssize_t store_multi_phase_freq_tbl(struct kobject *a, struct attribute *b
 }
 
 show_one(two_phase_freq, two_phase_freq);
-
 static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
@@ -765,8 +763,10 @@ static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 	if (policy) {
 		if (input < policy->cpuinfo.min_freq || input > policy->cpuinfo.max_freq)
 			return -EINVAL;
-		dbs_tuners_ins.two_phase_freq = input;
-		reset_freq_map_table(policy);
+		if (dbs_tuners_ins.two_phase_freq != input) {
+			dbs_tuners_ins.two_phase_freq = input;
+			reset_freq_map_table(policy);
+		}
 	}
 
 	return count;
@@ -906,7 +906,7 @@ static void reset_freq_map_table(struct cpufreq_policy *policy)
 	unsigned int real_freq;
 	int index;
 
-	if (!tbl)
+	if (!tbl || !tblmap[0])
 		return;
 
 	
@@ -1086,6 +1086,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	struct cpufreq_policy *policy;
 	unsigned int j, max_cur_load = 0, prev_load = 0;
 	struct cpu_dbs_info_s *j_dbs_info;
+	unsigned int up_threshold = 85;
 
 	this_dbs_info->freq_lo = 0;
 	policy = this_dbs_info->cur_policy;
@@ -1171,8 +1172,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 	}
 
-	
-	if (max_load_freq > up_threshold_level[1] * policy->cur) {
+	up_threshold = up_threshold_level[1];
+
+	if (max_load_freq > up_threshold * policy->cur) {
 		unsigned int freq_next;
 		unsigned int avg_load = (prev_load + max_cur_load) >> 1;
 		int index = get_cpu_freq_index(policy->cur);
@@ -1206,6 +1208,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				freq_next = tblmap[tbl_select[1]][index];
 			}
 		}
+
 		dbs_freq_increase(policy, max_cur_load, freq_next);
 		
 		if (policy->cur == policy->max)
@@ -1222,7 +1225,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			if (policy->cur < dbs_tuners_ins.optimal_freq)
 				dbs_freq_increase(policy, max_cur_load,
 						dbs_tuners_ins.optimal_freq);
-			
 			return;
 		}
 	}
@@ -1695,6 +1697,7 @@ static int __init cpufreq_gov_dbs_init(void)
 		}
 		mutex_init(&this_dbs_info->timer_mutex);
 	}
+
 	return cpufreq_register_governor(&cpufreq_gov_ondemand);
 }
 
