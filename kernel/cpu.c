@@ -234,7 +234,6 @@ out_release:
 	return err;
 }
 
-extern void trace_cpu_down_frequency (unsigned int cpu);
 int __ref cpu_down(unsigned int cpu)
 {
 	int err;
@@ -252,8 +251,6 @@ out:
 	cpu_maps_update_done();
 
 	
-	if (!err)
-		trace_cpu_down_frequency (cpu);
 
 	return err;
 }
@@ -295,7 +292,6 @@ out_notify:
 	return ret;
 }
 
-extern void trace_cpu_up_frequency (unsigned int cpu);
 int __cpuinit cpu_up(unsigned int cpu)
 {
 	int err = 0;
@@ -349,8 +345,6 @@ int __cpuinit cpu_up(unsigned int cpu)
 out:
 	cpu_maps_update_done();
 	
-	if (!err)
-		trace_cpu_up_frequency (cpu);
 	return err;
 }
 EXPORT_SYMBOL_GPL(cpu_up);
