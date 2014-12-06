@@ -749,30 +749,10 @@ void blk_requeue_request(struct request_queue *q, struct request *rq)
 
 	BUG_ON(blk_queued_rq(rq));
 
-	if (rq->cmd_flags & REQ_URGENT) {
-		/*
-		 * It's not compliant with the design to re-insert
-		 * urgent requests. We want to be able to track this
-		 * down.
-		 */
-		pr_debug("%s(): requeueing an URGENT request", __func__);
-		WARN_ON(!q->dispatched_urgent);
-		q->dispatched_urgent = false;
-	}
 	elv_requeue_request(q, rq);
 }
 EXPORT_SYMBOL(blk_requeue_request);
 
-/**
- * blk_reinsert_request() - Insert a request back to the scheduler
- * @q:		request queue
- * @rq:		request to be inserted
- *
- * This function inserts the request back to the scheduler as if
- * it was never dispatched.
- *
- * Return: 0 on success, error code on fail
- */
 int blk_reinsert_request(struct request_queue *q, struct request *rq)
 {
 	if (unlikely(!rq) || unlikely(!q))
@@ -786,29 +766,11 @@ int blk_reinsert_request(struct request_queue *q, struct request *rq)
 		blk_queue_end_tag(q, rq);
 
 	BUG_ON(blk_queued_rq(rq));
-	if (rq->cmd_flags & REQ_URGENT) {
-		/*
-		 * It's not compliant with the design to re-insert
-		 * urgent requests. We want to be able to track this
-		 * down.
-		 */
-		pr_debug("%s(): reinserting an URGENT request", __func__);
-		WARN_ON(!q->dispatched_urgent);
-		q->dispatched_urgent = false;
-	}
 
 	return elv_reinsert_request(q, rq);
 }
 EXPORT_SYMBOL(blk_reinsert_request);
 
-/**
- * blk_reinsert_req_sup() - check whether the scheduler supports
- *          reinsertion of requests
- * @q:		request queue
- *
- * Returns true if the current scheduler supports reinserting
- * request. False otherwise
- */
 bool blk_reinsert_req_sup(struct request_queue *q)
 {
 	if (unlikely(!q))
@@ -993,6 +955,8 @@ void init_request_from_bio(struct request *req, struct bio *bio)
 	if (bio->bi_rw & REQ_RAHEAD)
 		req->cmd_flags |= REQ_FAILFAST_MASK;
 
+	req->enter_time = ktime_get();
+	req->pid = task_pid_nr(current);
 	req->errors = 0;
 	req->__sector = bio->bi_sector;
 	req->ioprio = bio_prio(bio);
@@ -1452,8 +1416,6 @@ struct request *blk_peek_request(struct request_queue *q)
 				elv_activate_rq(q, rq);
 
 			rq->cmd_flags |= REQ_STARTED;
-			if (rq->cmd_flags & REQ_URGENT)
-				q->dispatched_urgent = true;
 			trace_block_rq_issue(q, rq);
 		}
 
@@ -1529,8 +1491,13 @@ struct request *blk_fetch_request(struct request_queue *q)
 	struct request *rq;
 
 	rq = blk_peek_request(q);
-	if (rq)
+	if (rq) {
+		if (q->notified_urgent && !q->dispatched_urgent) {
+			q->dispatched_urgent = true;
+			(void)blk_mark_rq_urgent(rq);
+		}
 		blk_start_request(rq);
+	}
 	return rq;
 }
 EXPORT_SYMBOL(blk_fetch_request);

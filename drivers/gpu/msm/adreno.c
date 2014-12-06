@@ -2282,7 +2282,7 @@ done:
 			ft_data->ft_policy, ret);
 	return ret;
 }
-
+#if 0
 static int adreno_kill_suspect(struct kgsl_device *device, int pid)
 {
 	int ret = 1;
@@ -2338,6 +2338,7 @@ static int adreno_kill_suspect(struct kgsl_device *device, int pid)
 #endif
 	return ret;
 }
+#endif
 
 int
 adreno_dump_and_exec_ft(struct kgsl_device *device)
@@ -2409,11 +2410,13 @@ adreno_dump_and_exec_ft(struct kgsl_device *device)
 			if (result) {
 				msleep(10000);
 				panic("GPU Hang");
+#if 0
 			} else {
 				if (board_mfg_mode() || adreno_kill_suspect(device, gpu_hung_pid)) {
 					msleep(10000);
 					panic("Recoverable GPU Hang");
 				}
+#endif
 			}
 		}
 	}
@@ -3137,6 +3140,11 @@ unsigned int adreno_ft_detect(struct kgsl_device *device,
 
 			context = kgsl_context_get(device, curr_context_id);
 			if (context != NULL) {
+				if (context->devctxt == NULL) {
+					KGSL_DRV_ERR(device,
+						"Fault tolerance no context found\n");
+					return -EINVAL;
+				}
 				curr_context = context->devctxt;
 				curr_context->ib_gpu_time_used = 0;
 			} else {

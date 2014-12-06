@@ -123,6 +123,10 @@ u32 vid_enc_set_get_inputformat(struct video_client_ctx *client_ctx,
 			format.buffer_format =
 				VCD_BUFFER_FORMAT_NV12_16M2KA;
 			break;
+		case VEN_INPUTFMT_NV21_16M2KA:
+			format.buffer_format =
+				VCD_BUFFER_FORMAT_NV21_16M2KA;
+			break;
 		default:
 			status = false;
 			break;
@@ -151,6 +155,9 @@ u32 vid_enc_set_get_inputformat(struct video_client_ctx *client_ctx,
 				break;
 			case VCD_BUFFER_FORMAT_TILE_4x2:
 				*input_format = VEN_INPUTFMT_NV21;
+				break;
+			case VCD_BUFFER_FORMAT_NV21_16M2KA:
+				*input_format = VEN_INPUTFMT_NV21_16M2KA;
 				break;
 			default:
 				status = false;
@@ -349,6 +356,42 @@ u32 vid_enc_set_get_extradata(struct video_client_ctx *client_ctx,
 		*extradata_flag = vcd_meta_data.meta_data_enable_flag;
 		DBG("vcd_get_property: VCD_I_METADATA_ENABLE = %d\n",
 				*extradata_flag);
+	}
+	return true;
+}
+
+u32 vid_enc_set_get_extradata_cfg(struct video_client_ctx *client_ctx,
+		u32 *extradata_flag, u32 set_flag)
+{
+	struct vcd_property_hdr vcd_property_hdr;
+	struct vcd_property_meta_data_enable vcd_meta_data;
+	u32 vcd_status = VCD_ERR_FAIL;
+	if (!client_ctx || !extradata_flag)
+		return false;
+	vcd_property_hdr.prop_id = VCD_I_METADATA_ENABLE;
+	vcd_property_hdr.sz = sizeof(struct vcd_property_meta_data_enable);
+	if (set_flag) {
+		DBG("vcd_set_property: VCD_I_METADATA_ENABLE = %d\n",
+			*extradata_flag);
+		vcd_meta_data.meta_data_enable_flag = *extradata_flag;
+		vcd_status = vcd_set_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_meta_data);
+		if (vcd_status) {
+			ERR("%s(): Set VCD_I_METADATA_ENABLE Failed\n",
+				__func__);
+			return false;
+		}
+	} else {
+		vcd_status = vcd_get_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_meta_data);
+		if (vcd_status) {
+			ERR("%s(): Get VCD_I_METADATA_ENABLE Failed\n",
+				__func__);
+			return false;
+		}
+		*extradata_flag = vcd_meta_data.meta_data_enable_flag;
+		DBG("vcd_get_property: VCD_I_METADATA_ENABLE = 0x%x\n",
+			(u32)*extradata_flag);
 	}
 	return true;
 }
@@ -1577,7 +1620,12 @@ u32 vid_enc_set_buffer(struct video_client_ctx *client_ctx,
 	enum vcd_buffer_type vcd_buffer_t = VCD_BUFFER_INPUT;
 	enum buffer_dir dir_buffer = BUFFER_TYPE_INPUT;
 	u32 vcd_status = VCD_ERR_FAIL;
-	unsigned long kernel_vaddr, length = 0;
+	unsigned long kernel_vaddr, length, user_vaddr, phy_addr = 0;
+	int pmem_fd = 0;
+	struct ion_handle *buff_handle = NULL;
+	u32 ion_flag = 0;
+	struct file *file = NULL;
+	s32 buffer_index = 0;
 
 	if (!client_ctx || !buffer_info)
 		return false;
@@ -1598,6 +1646,38 @@ u32 vid_enc_set_buffer(struct video_client_ctx *client_ctx,
 		    __func__, buffer_info->pbuffer);
 		return false;
 	}
+
+	/*
+	* Flush output buffers explcitly once, during registration. This ensures
+	* any pending CPU writes (if cleared after allocation) are
+	* committed right away, or else this may get flushed _after_
+	* the hardware has written bitstream. rare bug, but can happen !
+	*/
+	if (buffer == VEN_BUFFER_TYPE_OUTPUT) {
+		user_vaddr = (unsigned long)buffer_info->pbuffer;
+		if (!vidc_lookup_addr_table(client_ctx, BUFFER_TYPE_OUTPUT,
+					true, &user_vaddr, &kernel_vaddr,
+					&phy_addr, &pmem_fd, &file,
+					&buffer_index)) {
+			ERR("%s(): vidc_lookup_addr_table failed\n",
+			__func__);
+			return false;
+		}
+
+		ion_flag = vidc_get_fd_info(client_ctx, BUFFER_TYPE_OUTPUT,
+				buffer_info->fd, kernel_vaddr, buffer_index,
+				&buff_handle);
+
+		if (ion_flag == ION_FLAG_CACHED && buff_handle) {
+			msm_ion_do_cache_op(
+					client_ctx->user_ion_client,
+					buff_handle,
+					NULL,
+					(unsigned long) length,
+					ION_IOC_INV_CACHES);
+		}
+	}
+
 
 	vcd_status = vcd_set_buffer(client_ctx->vcd_handle,
 				    vcd_buffer_t, (u8 *) kernel_vaddr,
@@ -1722,7 +1802,7 @@ u32 vid_enc_encode_frame(struct video_client_ctx *client_ctx,
 				&buff_handle);
 
 		if (vcd_input_buffer.data_len > 0) {
-			if (ion_flag == 1  && buff_handle) {
+			if (ion_flag == ION_FLAG_CACHED && buff_handle) {
 				msm_ion_do_cache_op(
 				client_ctx->user_ion_client,
 				buff_handle,
@@ -1861,9 +1941,6 @@ u32 vid_enc_set_recon_buffers(struct video_client_ctx *client_ctx,
 			ERR("%s(): get_ION_handle failed\n", __func__);
 			goto import_ion_error;
 		}
-		if (!ion_phys(client_ctx->user_ion_client, client_ctx->recon_buffer_ion_handle[i], &phy_addr, &ion_len)) {
-			printk("%s ION phys 0x%lx len %u\n", __func__, phy_addr, ion_len);
-		}
 		rc = ion_handle_get_flags(client_ctx->user_ion_client,
 					client_ctx->recon_buffer_ion_handle[i],
 					&ionflag);
@@ -1903,7 +1980,7 @@ u32 vid_enc_set_recon_buffers(struct video_client_ctx *client_ctx,
 					control->buffer_size * 2,
 					(unsigned long *)&iova,
 					(unsigned long *)&buffer_size,
-					0 , 0);
+					0, 0);
 			if (rc || !iova) {
 				ERR(
 				"%s():ION map iommu addr fail, rc = %d, iova = 0x%lx\n",
@@ -2031,4 +2108,240 @@ u32 vid_enc_get_recon_buffer_size(struct video_client_ctx *client_ctx,
 				__func__, vcd_status);
 			return false;
 		}
+}
+
+u32 vid_enc_get_curr_perf_level(struct video_client_ctx *client_ctx,
+		u32 *curr_perf_level)
+{
+	struct vcd_property_hdr vcd_property_hdr;
+	u32 vcd_status = VCD_ERR_FAIL;
+	u32 curr_perf_lvl = 0;
+
+	if (!client_ctx)
+		return false;
+
+	vcd_property_hdr.prop_id = VCD_I_GET_CURR_PERF_LEVEL;
+	vcd_property_hdr.sz = sizeof(u32);
+	vcd_status = vcd_get_property(client_ctx->vcd_handle,
+					&vcd_property_hdr, &curr_perf_lvl);
+	if (vcd_status) {
+		ERR("VCD_I_GET_PERF_LEVEL failed!!");
+		*curr_perf_level = 0;
+		return false;
+	} else {
+		*curr_perf_level = curr_perf_lvl;
+		return true;
+	}
+}
+
+u32 vid_enc_set_get_ltrmode(struct video_client_ctx *client_ctx,
+		struct venc_ltrmode *venc_ltrmode, u32 set_flag)
+{
+	struct vcd_property_ltrmode_type vcd_property_ltrmode;
+	struct vcd_property_hdr vcd_property_hdr;
+	u32 vcd_status = VCD_ERR_FAIL;
+
+	if (!client_ctx || !venc_ltrmode)
+		return false;
+
+	vcd_property_hdr.prop_id = VCD_I_LTR_MODE;
+	vcd_property_hdr.sz =
+		sizeof(struct vcd_property_ltrmode_type);
+
+	if (set_flag) {
+		vcd_property_ltrmode.ltr_mode = (enum vcd_property_ltrmode)
+			venc_ltrmode->ltr_mode;
+		DBG("%s: Set ltr_mode = %u", __func__,
+			(u32)vcd_property_ltrmode.ltr_mode);
+		vcd_status = vcd_set_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltrmode);
+		if (vcd_status) {
+			ERR("%s(): Set VCD_I_LTR_MODE Failed\n",
+				__func__);
+			return false;
+		}
+	} else {
+		vcd_status = vcd_get_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltrmode);
+		if (vcd_status) {
+			ERR("%s(): Get VCD_I_LTR_MODE Failed\n",
+				__func__);
+			return false;
+		} else {
+			venc_ltrmode->ltr_mode = (unsigned long)
+				vcd_property_ltrmode.ltr_mode;
+			DBG("%s: Got ltr_mode = %u", __func__,
+				(u32)vcd_property_ltrmode.ltr_mode);
+		}
+	}
+
+	return true;
+}
+
+u32 vid_enc_set_get_ltrcount(struct video_client_ctx *client_ctx,
+		struct venc_ltrcount *venc_ltrcount, u32 set_flag)
+{
+	struct vcd_property_ltrcount_type vcd_property_ltrcount;
+	struct vcd_property_hdr vcd_property_hdr;
+	u32 vcd_status = VCD_ERR_FAIL;
+
+	if (!client_ctx || !venc_ltrcount)
+		return false;
+
+	vcd_property_hdr.prop_id = VCD_I_LTR_COUNT;
+	vcd_property_hdr.sz =
+		sizeof(struct vcd_property_ltrcount_type);
+
+	if (set_flag) {
+		vcd_property_ltrcount.ltr_count = (u32)
+			venc_ltrcount->ltr_count;
+		DBG("%s: Set ltr_count = %u", __func__,
+			(u32)vcd_property_ltrcount.ltr_count);
+		vcd_status = vcd_set_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltrcount);
+		if (vcd_status) {
+			ERR("%s(): Set VCD_I_LTR_COUNT Failed\n",
+				__func__);
+			return false;
+		}
+	} else {
+		vcd_status = vcd_get_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltrcount);
+		if (vcd_status) {
+			ERR("%s(): Get VCD_I_LTR_COUNT Failed\n",
+				__func__);
+			return false;
+		} else {
+			venc_ltrcount->ltr_count = (unsigned long)
+				vcd_property_ltrcount.ltr_count;
+			DBG("%s: Got ltr_count = %u", __func__,
+				(u32)vcd_property_ltrcount.ltr_count);
+		}
+	}
+
+	return true;
+}
+
+u32 vid_enc_set_get_ltrperiod(struct video_client_ctx *client_ctx,
+		struct venc_ltrperiod *venc_ltrperiod, u32 set_flag)
+{
+	struct vcd_property_ltrperiod_type vcd_property_ltrperiod;
+	struct vcd_property_hdr vcd_property_hdr;
+	u32 vcd_status = VCD_ERR_FAIL;
+
+	if (!client_ctx || !venc_ltrperiod)
+		return false;
+
+	vcd_property_hdr.prop_id = VCD_I_LTR_PERIOD;
+	vcd_property_hdr.sz =
+		sizeof(struct vcd_property_ltrperiod_type);
+
+	if (set_flag) {
+		vcd_property_ltrperiod.ltr_period = (u32)
+			venc_ltrperiod->ltr_period;
+		DBG("%s: Set ltr_period = %u", __func__,
+			(u32)vcd_property_ltrperiod.ltr_period);
+		vcd_status = vcd_set_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltrperiod);
+		if (vcd_status) {
+			ERR("%s(): Set VCD_I_LTR_PERIOD Failed\n",
+				__func__);
+			return false;
+		}
+	} else {
+		vcd_status = vcd_get_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltrperiod);
+		if (vcd_status) {
+			ERR("%s(): Get VCD_I_LTR_PERIOD Failed\n",
+				__func__);
+			return false;
+		} else {
+			venc_ltrperiod->ltr_period = (unsigned long)
+				vcd_property_ltrperiod.ltr_period;
+			DBG("%s: Got ltr_period = %u", __func__,
+				(u32)vcd_property_ltrperiod.ltr_period);
+		}
+	}
+
+	return true;
+}
+
+u32 vid_enc_set_get_ltruse(struct video_client_ctx *client_ctx,
+		struct venc_ltruse *venc_ltruse, u32 set_flag)
+{
+	struct vcd_property_ltruse_type vcd_property_ltruse;
+	struct vcd_property_hdr vcd_property_hdr;
+	u32 vcd_status = VCD_ERR_FAIL;
+
+	if (!client_ctx || !venc_ltruse)
+		return false;
+
+	vcd_property_hdr.prop_id = VCD_I_LTR_USE;
+	vcd_property_hdr.sz =
+		sizeof(struct vcd_property_ltruse_type);
+
+	if (set_flag) {
+		vcd_property_ltruse.ltr_id = (u32)
+			venc_ltruse->ltr_id;
+		vcd_property_ltruse.ltr_frames = (u32)
+			venc_ltruse->ltr_frames;
+		DBG("%s: Set ltr_id = %u, ltr_frames = %u",
+			__func__, vcd_property_ltruse.ltr_id,
+			vcd_property_ltruse.ltr_frames);
+		vcd_status = vcd_set_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltruse);
+		if (vcd_status) {
+			ERR("%s(): Set VCD_I_LTR_USE Failed\n",
+				__func__);
+			return false;
+		}
+	} else {
+		vcd_status = vcd_get_property(client_ctx->vcd_handle,
+			&vcd_property_hdr, &vcd_property_ltruse);
+		if (vcd_status) {
+			ERR("%s(): Get VCD_I_LTR_USE Failed\n",
+				__func__);
+			return false;
+		} else {
+			venc_ltruse->ltr_id = (unsigned long)
+				vcd_property_ltruse.ltr_id;
+			venc_ltruse->ltr_frames = (unsigned long)
+				vcd_property_ltruse.ltr_frames;
+			DBG("%s: Got ltr_id = %u, ltr_frames = %u",
+				__func__, vcd_property_ltruse.ltr_id,
+				vcd_property_ltruse.ltr_frames);
+		}
+	}
+
+	return true;
+}
+
+u32 vid_enc_get_capability_ltrcount(struct video_client_ctx *client_ctx,
+		struct venc_range *venc_capltrcount)
+{
+	struct vcd_property_range_type vcd_property_range;
+	struct vcd_property_hdr vcd_property_hdr;
+	u32 vcd_status = VCD_ERR_FAIL;
+
+	if (!client_ctx || !venc_capltrcount)
+		return false;
+
+	vcd_property_hdr.prop_id = VCD_I_CAPABILITY_LTR_COUNT;
+	vcd_property_hdr.sz = sizeof(struct vcd_property_range_type);
+	vcd_status = vcd_get_property(client_ctx->vcd_handle,
+		&vcd_property_hdr, &vcd_property_range);
+	if (vcd_status) {
+		ERR("%s(): Get VCD_I_CAPABILITY_LTR_COUNT Failed\n",
+			__func__);
+		return false;
+	} else {
+		venc_capltrcount->min = vcd_property_range.min;
+		venc_capltrcount->max = vcd_property_range.max;
+		venc_capltrcount->step_size = vcd_property_range.step_size;
+		DBG("%s: Got min: %lu, max: %lu, step_size: %lu", __func__,
+			venc_capltrcount->min, venc_capltrcount->max,
+			venc_capltrcount->step_size);
+	}
+
+	return true;
 }

@@ -179,17 +179,19 @@ kgsl_process_uninit_sysfs(struct kgsl_process_private *private)
 	kobject_put(&private->kobj);
 }
 
-void
+int
 kgsl_process_init_sysfs(struct kgsl_process_private *private)
 {
 	unsigned char name[16];
-	int i, ret;
+	int i, ret = 0;
 
 	snprintf(name, sizeof(name), "%d", private->pid);
 
-	if (kobject_init_and_add(&private->kobj, &ktype_mem_entry,
-		kgsl_driver.prockobj, name))
-		return;
+	ret = kobject_init_and_add(&private->kobj, &ktype_mem_entry,
+		kgsl_driver.prockobj, name);
+
+	if (ret)
+		return ret;
 
 	for (i = 0; i < ARRAY_SIZE(mem_stats); i++) {
 
@@ -201,6 +203,7 @@ kgsl_process_init_sysfs(struct kgsl_process_private *private)
 #ifdef CONFIG_MSM_KGSL_GPU_USAGE
 ret = sysfs_create_file(&private->kobj, &gpubusy.attr);
 #endif
+	return ret;
 }
 
 static int kgsl_drv_memstat_show(struct device *dev,

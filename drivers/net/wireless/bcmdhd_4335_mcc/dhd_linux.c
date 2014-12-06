@@ -3377,33 +3377,33 @@ printf("Read PCBID = %x\n", system_rev);
 	}
 #endif
 
-#ifdef CONFIG_MACH_TC2
+#ifdef CONFIG_MACH_DUMMY
 	if (system_rev >= PVT){
 		strcpy(nvram_path, "/system/etc/calibration.gpio4");
 	}
 #endif
 
-#ifdef CONFIG_MACH_M4_UL
+#ifdef CONFIG_MACH_DUMMY
 	strcpy(nvram_path, "/system/etc/calibration.gpio4");
 #endif
 
-#ifdef CONFIG_MACH_ZARA
+#ifdef CONFIG_MACH_DUMMY
 	strcpy(nvram_path, "/system/etc/calibration.gpio4");
 #endif
 
-#ifdef CONFIG_MACH_ZARA_CL
+#ifdef CONFIG_MACH_DUMMY
 	strcpy(nvram_path, "/system/etc/calibration.gpio4");
 #endif
 
-#ifdef CONFIG_MACH_ZARA_WL
+#ifdef CONFIG_MACH_DUMMY
 	strcpy(nvram_path, "/system/etc/calibration.gpio4");
 #endif
 
-#ifdef CONFIG_MACH_CP5_WL
+#ifdef CONFIG_MACH_DUMMY
 	strcpy(nvram_path, "/system/etc/calibration.gpio4");
 #endif
 
-#ifdef CONFIG_MACH_ZIP_CL
+#ifdef CONFIG_MACH_DUMMY
 	strcpy(nvram_path, "/system/etc/calibration.gpio4");
 #endif
 
@@ -5934,6 +5934,11 @@ dhd_dev_reset(struct net_device *dev, uint8 flag)
 	if (dhd->pub.plat_deinit)
 		dhd->pub.plat_deinit((void *)&dhd->pub);
 #endif 
+
+#ifdef PNO_SUPPORT
+		if (dhd->pub.pno_state)
+			dhd_pno_deinit(&dhd->pub);
+#endif
 	}
 
 	ret = dhd_bus_devreset(&dhd->pub, flag);

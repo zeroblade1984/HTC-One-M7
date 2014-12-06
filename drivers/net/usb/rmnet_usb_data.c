@@ -388,10 +388,18 @@ static struct sk_buff *rmnet_usb_tx_fixup(struct usbnet *dev,
 {
 	struct QMI_QOS_HDR_S	*qmih;
 	struct  mux_hdr *hdr;
-	unsigned int len_before = skb->len;
+	unsigned int len_before;
 	unsigned int len_after;
 	char event[128];
 	bool muxing = false;
+
+	if ( skb != NULL ) {
+		len_before = skb->len;
+	}
+	if ( !skb ) {
+		pr_err("%s: skb is null\n", __func__);
+		goto out;
+	}
 
 	if (test_bit(RMNET_MODE_QOS, &dev->data[0])) {
 		if (test_bit(RMNET_MODE_ALIGNED_QOS, &dev->data[0])) {
@@ -415,11 +423,6 @@ static struct sk_buff *rmnet_usb_tx_fixup(struct usbnet *dev,
 		DBG1("[%s] Tx packet #%lu len=%d mark=0x%x\n",
 			dev->net->name, dev->net->stats.tx_packets,
 			skb->len, skb->mark);
-
-	if ( !skb ) {
-		pr_err("%s: skb is null\n", __func__);
-		goto out;
-	}
 
 	if (!muxing)
 		goto out;

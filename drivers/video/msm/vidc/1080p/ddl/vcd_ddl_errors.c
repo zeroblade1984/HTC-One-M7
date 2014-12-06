@@ -218,6 +218,7 @@ static u32 ddl_handle_core_recoverable_errors(
 			}
 			break;
 		}
+	case VIDC_1080P_ERROR_NON_IDR_FRAME_TYPE:
 	case VIDC_1080P_ERROR_BIT_STREAM_BUF_EXHAUST:
 	case VIDC_1080P_ERROR_DESCRIPTOR_TABLE_ENTRY_INVALID:
 	case VIDC_1080P_ERROR_MB_COEFF_NOT_DONE:
@@ -240,16 +241,18 @@ static u32 ddl_handle_core_recoverable_errors(
 	case VIDC_1080P_ERROR_HEADER_NOT_FOUND:
 	case VIDC_1080P_ERROR_SLICE_PARSE_ERROR:
 	case VIDC_1080P_ERROR_NON_PAIRED_FIELD_NOT_SUPPORTED:
-        case VIDC_1080P_ERROR_DESCRIPTOR_BUFFER_EMPTY:
+	case VIDC_1080P_ERROR_DESCRIPTOR_BUFFER_EMPTY:
 		vcd_status = VCD_ERR_BITSTREAM_ERR;
-		DDL_MSG_ERROR("VIDC_BIT_STREAM_ERR");
+		DDL_MSG_ERROR("VIDC_BIT_STREAM_ERR (%u)",
+			(u32)ddl_context->cmd_err_status);
 		break;
 	case VIDC_1080P_ERROR_B_FRAME_NOT_SUPPORTED:
 	case VIDC_1080P_ERROR_UNSUPPORTED_FEATURE_IN_PROFILE:
 	case VIDC_1080P_ERROR_RESOLUTION_NOT_SUPPORTED:
 		if (ddl->decoding) {
 			vcd_status = VCD_ERR_BITSTREAM_ERR;
-			DDL_MSG_ERROR("VIDC_BIT_STREAM_ERR");
+			DDL_MSG_ERROR("VIDC_BIT_STREAM_ERR (%u)",
+				(u32)ddl_context->cmd_err_status);
 		}
 		break;
 	case VIDC_1080P_ERROR_NON_FRAME_DATA_RECEIVED:
@@ -396,7 +399,7 @@ static u32 ddl_handle_dec_seq_hdr_fail_error(struct ddl_client_context *ddl)
 
 	if ((ddl->cmd_state != DDL_CMD_HEADER_PARSE) ||
 		(ddl->client_state != DDL_CLIENT_WAIT_FOR_INITCODECDONE)) {
-		DDL_MSG_ERROR("STATE-CRITICAL-HDDONE");
+		DDL_MSG_HIGH("STATE-CRITICAL-HDDONE");
 		return false;
 	}
 
