@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -102,14 +102,14 @@ struct rtac_voice_data {
 
 struct rtac_voice {
 	uint32_t		num_of_voice_combos;
-	struct rtac_voice_data	voice[RTAC_MAX_ACTIVE_VOICE_COMBOS];
+	struct rtac_voice_data	voice[RTAC_MAX_ACTIVE_VOICE_COMBOS + 1];
 };
 
 static struct rtac_voice	rtac_voice_data;
 static u32			rtac_voice_payload_size;
 static u32			rtac_voice_user_buf_size;
 static u8			*rtac_voice_buffer;
-static u32			voice_session_id[RTAC_MAX_ACTIVE_VOICE_COMBOS];
+static u32			voice_session_id[RTAC_MAX_ACTIVE_VOICE_COMBOS + 1];
 
 
 struct mutex			rtac_adm_mutex;
@@ -291,7 +291,7 @@ void rtac_add_voice(u32 cvs_handle, u32 cvp_handle, u32 rx_afe_port,
 
 	
 	if (rtac_voice_data.num_of_voice_combos != 0) {
-		for (; i < rtac_voice_data.num_of_voice_combos; i++) {
+		while (i < rtac_voice_data.num_of_voice_combos) {
 			if (rtac_voice_data.voice[i].cvs_handle ==
 							cvs_handle) {
 				set_rtac_voice_data(i, cvs_handle, cvp_handle,
@@ -299,6 +299,7 @@ void rtac_add_voice(u32 cvs_handle, u32 cvp_handle, u32 rx_afe_port,
 					session_id);
 				goto done;
 			}
+			i++;
 		}
 	}
 
@@ -314,11 +315,12 @@ done:
 
 static void shift_voice_devices(u32 idx)
 {
-	for (; idx < rtac_voice_data.num_of_voice_combos - 1; idx++) {
+	while ((idx < rtac_voice_data.num_of_voice_combos - 1) && (rtac_voice_data.num_of_voice_combos > 1)) {
 		memcpy(&rtac_voice_data.voice[idx],
 			&rtac_voice_data.voice[idx + 1],
 			sizeof(rtac_voice_data.voice[idx]));
 		voice_session_id[idx] = voice_session_id[idx + 1];
+		idx++;
 	}
 }
 
@@ -328,8 +330,8 @@ void rtac_remove_voice(u32 cvs_handle)
 	pr_debug("%s\n", __func__);
 
 	mutex_lock(&rtac_voice_mutex);
-	
-	for (i = 0; i < rtac_voice_data.num_of_voice_combos; i++) {
+
+	while (i < rtac_voice_data.num_of_voice_combos) {
 		if (rtac_voice_data.voice[i].cvs_handle == cvs_handle) {
 			shift_voice_devices(i);
 			rtac_voice_data.num_of_voice_combos--;
@@ -341,6 +343,7 @@ void rtac_remove_voice(u32 cvs_handle)
 				= 0;
 			break;
 		}
+		i++;
 	}
 	mutex_unlock(&rtac_voice_mutex);
 	return;
