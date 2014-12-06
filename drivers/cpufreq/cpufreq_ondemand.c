@@ -108,32 +108,20 @@ static unsigned long input_event_boost_expired = 0;
 extern int has_boost_cpu_func;
 #endif
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
-#define TABLE_SIZE			1
-#else
 #define TABLE_SIZE			5
-#endif
 #define MAX(x,y)			(x > y ? x : y)
 #define MIN(x,y)			(x < y ? x : y)
-#define FREQ_NEED_BURST(x)	(x < 600000 ? 1 : 0)
+#define FREQ_NEED_BURST(x)		(x < 600000 ? 1 : 0)
 
 static struct cpufreq_frequency_table *tbl = NULL;
 static unsigned int *tblmap[TABLE_SIZE] __read_mostly;
 static unsigned int tbl_select[4] = {0};
 static int input_event_counter = 0;
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
-static unsigned int up_threshold_level[2] __read_mostly = {90, 90};
-static inline void switch_turbo_mode(unsigned timeout) {};
-static inline void switch_normal_mode(void) {};
-static void reset_freq_map_table(struct cpufreq_policy *);
-#else
 static unsigned int up_threshold_level[2] __read_mostly = {95, 85};
 struct timer_list freq_mode_timer;
 static inline void switch_turbo_mode(unsigned);
 static inline void switch_normal_mode(void);
-static void reset_freq_map_table(struct cpufreq_policy *policy) {};
-#endif
 
 static DEFINE_MUTEX(dbs_mutex);
 
@@ -351,7 +339,6 @@ static void update_sampling_rate(unsigned int new_rate)
 	dbs_tuners_ins.sampling_rate = new_rate
 				     = max(new_rate, min_sampling_rate);
 
-	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct cpufreq_policy *policy;
 		struct cpu_dbs_info_s *dbs_info;
@@ -385,7 +372,6 @@ static void update_sampling_rate(unsigned int new_rate)
 		}
 		mutex_unlock(&dbs_info->timer_mutex);
 	}
-	put_online_cpus();
 }
 
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
@@ -604,8 +590,8 @@ static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 
 	dbs_tuners_ins.powersave_bias = input;
 
-	get_online_cpus();
 	mutex_lock(&dbs_mutex);
+	get_online_cpus();
 
 	if (!bypass) {
 		if (reenable_timer) {
@@ -616,12 +602,11 @@ static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 
 				dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
 
-				if (!dbs_info->cur_policy) {
-					pr_err("Dbs policy is NULL\n");
-					goto skip_this_cpu;
-				}
-
 				for_each_cpu(j, &cpus_timer_done) {
+					if (!dbs_info->cur_policy) {
+						pr_err("Dbs policy is NULL\n");
+						goto skip_this_cpu;
+					}
 					if (cpumask_test_cpu(j, dbs_info->
 							cur_policy->cpus))
 						goto skip_this_cpu;
@@ -644,12 +629,11 @@ skip_this_cpu:
 
 			dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
 
-			if (!dbs_info->cur_policy) {
-				pr_err("Dbs policy is NULL\n");
-				goto skip_this_cpu_bypass;
-			}
-
 			for_each_cpu(j, &cpus_timer_done) {
+				if (!dbs_info->cur_policy) {
+					pr_err("Dbs policy is NULL\n");
+					goto skip_this_cpu_bypass;
+				}
 				if (cpumask_test_cpu(j, dbs_info->
 							cur_policy->cpus))
 					goto skip_this_cpu_bypass;
@@ -674,8 +658,8 @@ skip_this_cpu_bypass:
 		}
 	}
 
-	mutex_unlock(&dbs_mutex);
 	put_online_cpus();
+	mutex_unlock(&dbs_mutex);
 
 	return count;
 }
@@ -765,7 +749,6 @@ static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 			return -EINVAL;
 		if (dbs_tuners_ins.two_phase_freq != input) {
 			dbs_tuners_ins.two_phase_freq = input;
-			reset_freq_map_table(policy);
 		}
 	}
 
@@ -843,8 +826,6 @@ static struct attribute_group dbs_attr_group = {
 	.name = "ondemand",
 };
 
-
-#ifndef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
 static inline void switch_turbo_mode(unsigned timeout)
 {
 	if (timeout > 0)
@@ -871,7 +852,6 @@ static void switch_mode_timer(unsigned long data)
 {
 	switch_normal_mode();
 }
-#endif
 
 static int adjust_freq_map_table(int freq, int cnt, struct cpufreq_policy *policy)
 {
@@ -900,45 +880,6 @@ static int adjust_freq_map_table(int freq, int cnt, struct cpufreq_policy *polic
 	return (freq - lower < upper - freq)?lower:upper;
 }
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
-static void reset_freq_map_table(struct cpufreq_policy *policy)
-{
-	unsigned int real_freq;
-	int index;
-
-	if (!tbl || !tblmap[0])
-		return;
-
-	
-	real_freq = adjust_freq_map_table(dbs_tuners_ins.two_phase_freq, freq_cnt, policy);
-
-	for (index = 0; index < freq_cnt; index++) {
-		
-		if (tbl[index].frequency < real_freq)
-			tblmap[0][index] = real_freq;
-
-		
-		else if (tbl[index].frequency == real_freq && index != freq_cnt-1)
-			tblmap[0][index] = tbl[index+1].frequency;
-
-		
-		else
-			tblmap[0][index] = policy->cpuinfo.max_freq;
-	}
-}
-
-static void dbs_init_freq_map_table(struct cpufreq_policy *policy)
-{
-	tbl = cpufreq_frequency_get_table(0);
-
-	for (freq_cnt = 0; (tbl[freq_cnt].frequency != CPUFREQ_TABLE_END); freq_cnt++);
-
-	tblmap[0] = kmalloc(sizeof(unsigned int) * freq_cnt, GFP_KERNEL);
-	BUG_ON(!tblmap[0]);
-
-	reset_freq_map_table(policy);
-}
-#else
 static void dbs_init_freq_map_table(struct cpufreq_policy *policy)
 {
 	unsigned int min_diff, top1, top2;
@@ -996,22 +937,10 @@ static void dbs_init_freq_map_table(struct cpufreq_policy *policy)
 
 	switch_normal_mode();
 
-	
 	init_timer(&freq_mode_timer);
 	freq_mode_timer.function = switch_mode_timer;
 	freq_mode_timer.data = 0;
-
-#if 0
-	
-	for (i = 0; i < TABLE_SIZE; i++) {
-		pr_info("Table %d shows:\n", i+1);
-		for (j = 0; j < freq_cnt; j++) {
-			pr_info("%02d: %8u\n", j, tblmap[i][j]);
-		}
-	}
-#endif
 }
-#endif
 
 static void dbs_deinit_freq_map_table(void)
 {
@@ -1025,9 +954,7 @@ static void dbs_deinit_freq_map_table(void)
 	for (i = 0; i < TABLE_SIZE; i++)
 		kfree(tblmap[i]);
 
-#ifndef CONFIG_CPU_FREQ_GOV_ONDEMAND_MULTI_PHASE
 	del_timer(&freq_mode_timer);
-#endif
 }
 
 static inline int get_cpu_freq_index(unsigned int freq)
@@ -1229,8 +1156,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 	}
 
-	
-	
 	if (policy->cur == policy->min)
 		return;
 
@@ -1386,7 +1311,8 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 			switch_turbo_mode(DBS_SWITCH_MODE_TIMEOUT);
 		}
 	} else if (type == EV_KEY && value == 1 &&
-			(code == KEY_POWER || code == KEY_VOLUMEUP || code == KEY_VOLUMEDOWN))
+			(code == KEY_POWER || code == KEY_VOLUMEUP || 
+				code == KEY_VOLUMEDOWN))
 	{
 		touch_freq = touch_freq_array[num_online_cpus() - 1];
 		
@@ -1396,15 +1322,16 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 	if (touch_freq > 0) {
 		spin_lock_irqsave(&input_boost_lock, flags);
 		input_event_boost = true;
-		input_event_boost_expired = jiffies + usecs_to_jiffies(dbs_tuners_ins.sampling_rate * 4);
+		input_event_boost_expired = jiffies + 
+				usecs_to_jiffies(dbs_tuners_ins.sampling_rate * 4);
 		spin_unlock_irqrestore(&input_boost_lock, flags);
 
 		for_each_online_cpu(i) {
 			dbs_info = &per_cpu(od_cpu_dbs_info, i);
 			if (dbs_info->cur_policy &&		
 					dbs_info->cur_policy->cur < touch_freq) {
-					dbs_info->input_event_freq = touch_freq;
-					wake_up_process(per_cpu(up_task, i));
+				dbs_info->input_event_freq = touch_freq;
+				wake_up_process(per_cpu(up_task, i));
 			}
 		}
 	}
