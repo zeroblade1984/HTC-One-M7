@@ -43,7 +43,7 @@
 
 #define MAX_UV	100
 #define MAX_VDD_LEVEL	1300000
-#define MIN_VDD_LEVEL	850000
+#define MIN_VDD_LEVEL	800000
 
 unsigned int lower_uV = 0, higher_uV = 0;
 static unsigned long higher_khz_thres = 1242000;
