@@ -509,7 +509,7 @@ perflock_show(struct kobject *kobj, struct kobj_attribute *attr,
 	if (is_perf_lock_active(&user_cpu_perf_lock) != 0)
 		perf_enable |= (1 << PERF_LOCK_INVALID);
 
-	return sprintf(buf, "%d", perf_enable);
+	return sprintf(buf, "%d\n", perf_enable);
 }
 
 static inline void user_cpufreq_perf_lock(int level, int val)
@@ -626,7 +626,7 @@ cpufreq_ceiling_show(struct kobject *kobj, struct kobj_attribute *attr,
 	if (is_perf_lock_active(&user_cpu_ceiling_lock) != 0)
 		ceiling_enable |= (1 << PERF_LOCK_INVALID);
 
-	return sprintf(buf, "%d", ceiling_enable);
+	return sprintf(buf, "%d\n", ceiling_enable);
 }
 
 static inline void user_cpufreq_ceiling_lock(int level, int val)
@@ -677,6 +677,91 @@ cpufreq_ceiling_store(struct kobject *kobj, struct kobj_attribute *attr,
 }
 power_attr(cpufreq_ceiling);
 
+static int cpunum_max;
+static int cpunum_min;
+
+static ssize_t
+cpunum_floor_show(struct kobject *kobj, struct kobj_attribute *attr,
+		char *buf)
+{
+	int i;
+	int all_cpus = num_possible_cpus();
+	for (i = all_cpus-1 ; i >= 0 ; i--) {
+		if (cpunum_min & (1 << i))
+		    break;
+	}
+	if (i < 0)
+	    i = 0;
+	else
+	    i++;
+
+	return sprintf(buf, "%d\n", i);
+}
+
+static ssize_t
+cpunum_floor_store(struct kobject *kobj, struct kobj_attribute *attr,
+		const char *buf, size_t n)
+{
+	int val, bit, on;
+
+	if (sscanf(buf, "%d", &val) > 0) {
+		bit = val / 2;
+		on = val % 2;
+		if (bit >= num_possible_cpus() || bit < 0)
+		    return -EINVAL;
+		if (on)
+		    cpunum_min |= (1 << bit);
+		else
+		    cpunum_min &= ~(1 << bit);
+		sysfs_notify(kobj, NULL, "cpunum_floor");
+		return n;
+	}
+	return -EINVAL;
+}
+
+static ssize_t
+cpunum_ceiling_show(struct kobject *kobj, struct kobj_attribute *attr,
+		char *buf)
+{
+	int i;
+	int all_cpus = num_possible_cpus();
+	for (i = 0 ; i < all_cpus ; i++) {
+		if (cpunum_max & (1 << i))
+		    break;
+	}
+	if (i >= all_cpus)
+	    i = 0;
+	else
+	    i++;
+
+	return sprintf(buf, "%d\n", i);
+}
+
+static ssize_t
+cpunum_ceiling_store(struct kobject *kobj, struct kobj_attribute *attr,
+		const char *buf, size_t n)
+{
+	int val, bit, on;
+
+	if (sscanf(buf, "%d", &val) > 0) {
+		bit = val / 2;
+		on = val % 2;
+		if (bit >= num_possible_cpus() || bit < 0)
+		    return -EINVAL;
+		if (on)
+		    cpunum_max |= (1 << bit);
+		else
+		    cpunum_max &= ~(1 << bit);
+		sysfs_notify(kobj, NULL, "cpunum_ceiling");
+		return n;
+	}
+	return -EINVAL;
+}
+
+power_attr(cpunum_floor);
+power_attr(cpunum_ceiling);
+#endif
+
 #ifdef CONFIG_HTC_ONMODE_CHARGING
 static ssize_t state_onchg_show(struct kobject *kobj, struct kobj_attribute *attr,
 			     char *buf)
@@ -717,91 +802,6 @@ state_onchg_store(struct kobject *kobj, struct kobj_attribute *attr,
 power_attr(state_onchg);
 #endif
 
-static int cpunum_max;
-static int cpunum_min;
-
-static ssize_t
-cpunum_floor_show(struct kobject *kobj, struct kobj_attribute *attr,
-		char *buf)
-{
-	int i;
-	int all_cpus = num_possible_cpus();
-	for (i = all_cpus-1 ; i >= 0 ; i--) {
-		if (cpunum_min & (1 << i))
-		    break;
-	}
-	if (i < 0)
-	    i = 0;
-	else
-	    i++;
-
-	return sprintf(buf, "%d", i);
-}
-
-static ssize_t
-cpunum_floor_store(struct kobject *kobj, struct kobj_attribute *attr,
-		const char *buf, size_t n)
-{
-	int val, bit, on;
-
-	if (sscanf(buf, "%d", &val) > 0) {
-		bit = val / 2;
-		on = val % 2;
-		if (bit >= num_possible_cpus() || bit < 0)
-		    return -EINVAL;
-		if (on)
-		    cpunum_min |= (1 << bit);
-		else
-		    cpunum_min &= ~(1 << bit);
-		sysfs_notify(kobj, NULL, "cpunum_floor");
-		return n;
-	}
-	return -EINVAL;
-}
-
-static ssize_t
-cpunum_ceiling_show(struct kobject *kobj, struct kobj_attribute *attr,
-		char *buf)
-{
-	int i;
-	int all_cpus = num_possible_cpus();
-	for (i = 0 ; i < all_cpus ; i++) {
-		if (cpunum_max & (1 << i))
-		    break;
-	}
-	if (i >= all_cpus)
-	    i = 0;
-	else
-	    i++;
-
-	return sprintf(buf, "%d", i);
-}
-
-static ssize_t
-cpunum_ceiling_store(struct kobject *kobj, struct kobj_attribute *attr,
-		const char *buf, size_t n)
-{
-	int val, bit, on;
-
-	if (sscanf(buf, "%d", &val) > 0) {
-		bit = val / 2;
-		on = val % 2;
-		if (bit >= num_possible_cpus() || bit < 0)
-		    return -EINVAL;
-		if (on)
-		    cpunum_max |= (1 << bit);
-		else
-		    cpunum_max &= ~(1 << bit);
-		sysfs_notify(kobj, NULL, "cpunum_ceiling");
-		return n;
-	}
-	return -EINVAL;
-}
-
-power_attr(cpunum_floor);
-power_attr(cpunum_ceiling);
-#endif
-
 static struct attribute *g[] = {
 	&state_attr.attr,
 #ifdef CONFIG_PM_TRACE
@@ -820,9 +820,6 @@ static struct attribute *g[] = {
 	&wake_lock_attr.attr,
 	&wake_unlock_attr.attr,
 #endif
-#ifdef CONFIG_HTC_ONMODE_CHARGING
-	&state_onchg_attr.attr,
-#endif
 #endif
 #ifdef CONFIG_PERFLOCK
 	&perflock_attr.attr,
@@ -831,6 +828,9 @@ static struct attribute *g[] = {
 	&powersave_attr.attr,
 	&cpunum_floor_attr.attr,
 	&cpunum_ceiling_attr.attr,
+#endif
+#ifdef CONFIG_HTC_ONMODE_CHARGING
+	&state_onchg_attr.attr,
 #endif
 	NULL,
 };
