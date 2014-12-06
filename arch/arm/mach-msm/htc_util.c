@@ -132,11 +132,10 @@ static u64 get_iowait_time(int cpu)
 
 #endif
 
-
-extern void htc_print_active_wake_locks(int type);
-extern void htc_show_interrupts(void);
+#ifdef CONFIG_DEBUG_KERNEL
 extern void htc_timer_stats_onoff(char onoff);
 extern void htc_timer_stats_show(u16 water_mark);
+#endif
 
 static int msm_htc_util_delay_time = HTC_PM_STATSTIC_DELAY;
 module_param_named(
@@ -313,9 +312,11 @@ void htc_pm_monitor_work(struct work_struct *work)
 	msm_xo_print_voters();
 	htc_idle_stat_show(msm_htc_util_delay_time);
 	htc_idle_stat_clear();
+#ifdef CONFIG_DEBUG_KERNEL
 	htc_timer_stats_onoff('0');
 	htc_timer_stats_show(300);
 	htc_timer_stats_onoff('1');
+#endif
 #ifdef CONFIG_PERFLOCK
 	htc_print_active_perf_locks();
 #endif
