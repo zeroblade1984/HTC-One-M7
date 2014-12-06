@@ -25,6 +25,7 @@ struct sleep_data {
 
 struct sleep_data core_sleep_info;
 DEFINE_PER_CPU(struct hrtimer, core_sleep_timer);
+#ifdef CONFIG_MSM_SLEEP_STATS
 struct workqueue_struct *adaptive_wq;
 
 static void idle_enter(int cpu)
@@ -62,6 +63,7 @@ static int msm_idle_stats_notified(struct notifier_block *nb,
 
 	return 0;
 }
+#endif
 
 static void notify_uspace_work_fn(struct work_struct *work)
 {
@@ -71,6 +73,7 @@ static void notify_uspace_work_fn(struct work_struct *work)
 	sysfs_notify(sleep_info->kobj, NULL, "timer_expired");
 }
 
+#ifdef CONFIG_MSM_SLEEP_STATS
 static enum hrtimer_restart timer_func(struct hrtimer *handle)
 {
 	struct sleep_data *sleep_info = &core_sleep_info;
@@ -89,6 +92,7 @@ static enum hrtimer_restart timer_func(struct hrtimer *handle)
 	else
 		return HRTIMER_NORESTART;
 }
+#endif
 
 static ssize_t timer_val_ms_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -184,15 +188,21 @@ static void remove_sysfs_objects(struct sleep_data *sleep_info)
 
 static int __init msm_sleep_info_init(void)
 {
-	int err = 0, cpu = 0;
+	int err = 0;
 	struct sleep_data *sleep_info = NULL;
+#ifdef CONFIG_MSM_SLEEP_STATS
+	int cpu = 0;
 	struct hrtimer *timer;
+#endif
 
 	printk(KERN_INFO "msm_sleep_stats: Initializing sleep stats ");
 	sleep_info = &core_sleep_info;
+#ifdef CONFIG_MSM_SLEEP_STATS
 	adaptive_wq = create_singlethread_workqueue("adaptive");
+#endif
 	INIT_WORK(&sleep_info->work, notify_uspace_work_fn);
 
+#ifdef CONFIG_MSM_SLEEP_STATS
 	sleep_info->notifier.notifier_call = msm_idle_stats_notified;
 
 	for_each_possible_cpu(cpu) {
@@ -206,6 +216,7 @@ static int __init msm_sleep_info_init(void)
 			pr_err("%s: failed to register idle notification\n", __func__);
 		}
 	}
+#endif
 
 	
 	err = add_sysfs_objects(sleep_info);
