@@ -98,7 +98,7 @@ enum rq_flag_bits {
 	__REQ_THROTTLED,	
 
 	
-	__REQ_SORTED,		
+	__REQ_SORTED = __REQ_RAHEAD,	
 	__REQ_SOFTBARRIER,	
 	__REQ_NOMERGE,		
 	__REQ_STARTED,		
