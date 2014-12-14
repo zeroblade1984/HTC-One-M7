@@ -39,7 +39,7 @@ struct pps_source_info {
 			int event, void *data);	
 
 	struct module *owner;
-	struct device *dev;
+	struct device *dev;		/* Parent device for device_create */
 };
 
 struct pps_event_time {
@@ -63,7 +63,8 @@ struct pps_device {
 	unsigned int last_ev;			
 	wait_queue_head_t queue;		
 
-	unsigned int id;			
+	unsigned int id;			/* PPS source unique ID */
+	void const *lookup_cookie;		/* pps_lookup_dev only */			
 	struct cdev cdev;
 	struct device *dev;
 	struct fasync_struct *async_queue;	
@@ -73,14 +74,27 @@ struct pps_device {
 
 extern struct device_attribute pps_attrs[];
 
+/*
+ * Internal functions.
+ *
+ * These are not actually part of the exported API, but this is a
+ * convenient header file to put them in.
+ */
 
+extern int pps_register_cdev(struct pps_device *pps);
+extern void pps_unregister_cdev(struct pps_device *pps);
+
+/*
+ * Exported functions
+ */
 extern struct pps_device *pps_register_source(
 		struct pps_source_info *info, int default_params);
 extern void pps_unregister_source(struct pps_device *pps);
-extern int pps_register_cdev(struct pps_device *pps);
-extern void pps_unregister_cdev(struct pps_device *pps);
 extern void pps_event(struct pps_device *pps,
 		struct pps_event_time *ts, int event, void *data);
+
+/* Look up a pps device by magic cookie */
+struct pps_device *pps_lookup_dev(void const *cookie);
 
 static inline void timespec_to_pps_ktime(struct pps_ktime *kt,
 		struct timespec ts)

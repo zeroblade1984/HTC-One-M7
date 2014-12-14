@@ -517,7 +517,7 @@ void prune_icache_sb(struct super_block *sb, int nr_to_scan)
 		inode = list_entry(sb->s_inode_lru.prev, struct inode, i_lru);
 
 		if (!spin_trylock(&inode->i_lock)) {
-			list_move_tail(&inode->i_lru, &sb->s_inode_lru);
+			list_move(&inode->i_lru, &sb->s_inode_lru);
 			continue;
 		}
 

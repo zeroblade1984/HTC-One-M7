@@ -372,6 +372,12 @@ static struct vmap_area *alloc_vmap_area(unsigned long size,
 	if (unlikely(!va))
 		return ERR_PTR(-ENOMEM);
 
+	/*
+	 * Only scan the relevant parts containing pointers to other objects
+	 * to avoid false negatives.
+	 */
+	kmemleak_scan_area(&va->rb_node, SIZE_MAX, gfp_mask & GFP_RECLAIM_MASK);
+
 retry:
 	spin_lock(&vmap_area_lock);
 	if (!free_vmap_cache ||
@@ -1416,7 +1422,12 @@ void *__vmalloc_node_range(unsigned long size, unsigned long align,
 
 	insert_vmalloc_vmlist(area);
 
-	kmemleak_alloc(addr, real_size, 3, gfp_mask);
+	/*
+	 * A ref_count = 2 is needed because vm_struct allocated in
+	 * __get_vm_area_node() contains a reference to the virtual address of
+	 * the vmalloc'ed block.
+	 */
+	kmemleak_alloc(addr, real_size, 2, gfp_mask);
 
 	return addr;
 

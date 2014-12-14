@@ -12,9 +12,10 @@
 struct nf_conntrack_ecache {
 	unsigned long cache;	
 	unsigned long missed;	
-	u16 ctmask;		
-	u16 expmask;		
-	u32 pid;		
+	u16 ctmask;		/* bitmask of ct events to be delivered */
+	u16 expmask;		/* bitmask of expect events to be delivered */
+	u32 pid;		/* netlink pid of destroyer */
+	struct timer_list timeout;		
 };
 
 static inline struct nf_conntrack_ecache *

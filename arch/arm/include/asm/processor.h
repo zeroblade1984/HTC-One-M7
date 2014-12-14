@@ -52,7 +52,6 @@ struct thread_struct {
 
 #define start_thread(regs,pc,sp)					\
 ({									\
-	unsigned long *stack = (unsigned long *)sp;			\
 	memset(regs->uregs, 0, sizeof(regs->uregs));			\
 	if (current->personality & ADDR_LIMIT_32BIT)			\
 		regs->ARM_cpsr = USR_MODE;				\
@@ -63,9 +62,6 @@ struct thread_struct {
 	regs->ARM_cpsr |= PSR_ENDSTATE;					\
 	regs->ARM_pc = pc & ~1;					\
 	regs->ARM_sp = sp;					\
-	regs->ARM_r2 = stack[2];				\
-	regs->ARM_r1 = stack[1];				\
-	regs->ARM_r0 = stack[0];				\
 	nommu_start_thread(regs);					\
 })
 

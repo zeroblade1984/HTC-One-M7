@@ -1171,9 +1171,9 @@ fail:
 	
 	if (ncm->notify)
 		ncm->notify->driver_data = NULL;
-	if (ncm->port.out_ep->desc)
+	if (ncm->port.out_ep)
 		ncm->port.out_ep->driver_data = NULL;
-	if (ncm->port.in_ep->desc)
+	if (ncm->port.in_ep)
 		ncm->port.in_ep->driver_data = NULL;
 
 

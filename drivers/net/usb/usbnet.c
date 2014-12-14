@@ -409,18 +409,18 @@ static inline void rx_process (struct usbnet *dev, struct sk_buff *skb)
 		goto done;
 	}
 	
+	/* all data was already cloned from skb inside the driver */
+	if (dev->driver_info->flags & FLAG_MULTI_PACKET)
+		goto done;
 
-	if (skb->len) {
-		
-		if (dev->driver_info->flags & FLAG_MULTI_PACKET)
-			dev_kfree_skb_any(skb);
-		else
-			usbnet_skb_return(dev, skb);
+	if (skb->len < ETH_HLEN) {
+		dev->net->stats.rx_errors++;
+		dev->net->stats.rx_length_errors++;
+		netif_dbg(dev, rx_err, dev->net, "rx length %d\n", skb->len);
+	} else {
+		usbnet_skb_return(dev, skb);
 		return;
 	}
-
-	netif_dbg(dev, rx_err, dev->net, "drop\n");
-	dev->net->stats.rx_errors++;
 done:
 	skb_queue_tail(&dev->done, skb);
 }
@@ -444,19 +444,8 @@ void rx_complete (struct urb *urb)
 	
 
 	switch (urb_status) {
-	
+	/* success */
 	case 0:
-		if (skb->len < dev->net->hard_header_len) {
-			state = rx_cleanup;
-			dev->net->stats.rx_errors++;
-			dev->net->stats.rx_length_errors++;
-			netif_dbg(dev, rx_err, dev->net,
-				  "rx length %d\n", skb->len);
-			
-			if (enable_tx_rx_debug)
-				netdev_info(dev->net, "[RMNET_D] Error: rx length %d\n", skb->len);
-			
-		}
 		break;
 
 	case -EPIPE:

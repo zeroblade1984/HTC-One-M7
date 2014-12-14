@@ -100,6 +100,13 @@ qh_refresh (struct ehci_hcd *ehci, struct ehci_qh *qh)
 	else {
 		qtd = list_entry (qh->qtd_list.next,
 				struct ehci_qtd, qtd_list);
+		/*
+		 * first qtd may already be partially processed.
+		 * If we come here during unlink, the QH overlay region
+		 * might have reference to the just unlinked qtd. The
+		 * qtd is updated in qh_completions(). Update the QH
+		 * overlay here.
+		 */
 		if (cpu_to_hc32(ehci, qtd->qtd_dma) == qh->hw->hw_current) {
 			qh->hw->hw_qtd_next = qtd->hw_next;
 			qtd = NULL;
@@ -215,17 +222,13 @@ ehci_urb_done(struct ehci_hcd *ehci, struct urb *urb, int status)
 __releases(ehci->lock)
 __acquires(ehci->lock)
 {
-	if (likely (urb->hcpriv != NULL)) {
-		struct ehci_qh	*qh = (struct ehci_qh *) urb->hcpriv;
-
-		
-		if ((qh->hw->hw_info2 & cpu_to_hc32(ehci, QH_SMASK)) != 0) {
-
-			
-			ehci_to_hcd(ehci)->self.bandwidth_int_reqs--;
-		}
-		qh_put (qh);
+	if (usb_pipetype(urb->pipe) == PIPE_INTERRUPT) {
+		/* ... update hc-wide periodic stats */
+		ehci_to_hcd(ehci)->self.bandwidth_int_reqs--;
 	}
+
+	if (usb_pipetype(urb->pipe) != PIPE_ISOCHRONOUS)
+		qh_put((struct ehci_qh *) urb->hcpriv);
 
 	if (unlikely(urb->unlinked)) {
 		COUNT(ehci->stats.unlink);
@@ -367,7 +370,7 @@ qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
 			else if (last_status == -EINPROGRESS && !urb->unlinked)
 				continue;
 
-			
+			/* qh unlinked; token in overlay may be most current */
 			if (state == QH_STATE_IDLE
 					&& cpu_to_hc32(ehci, qtd->qtd_dma)
 						== hw->hw_current) {

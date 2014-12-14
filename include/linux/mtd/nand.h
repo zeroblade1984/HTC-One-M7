@@ -140,8 +140,8 @@ typedef enum {
 #define NAND_SUBPAGE_READ(chip) ((chip->ecc.mode == NAND_ECC_SOFT) \
 					&& (chip->page_shift > 9))
 
-#define NAND_CHIPOPTIONS_MSK	(0x0000ffff & ~NAND_NO_AUTOINCR)
-
+/* Non chip related options */
+/* This option skips the bbt scan during initialization. */
 #define NAND_SKIP_BBTSCAN	0x00010000
 #define NAND_OWN_BUFFERS	0x00020000
 #define NAND_SCAN_SILENT_NODEV	0x00040000

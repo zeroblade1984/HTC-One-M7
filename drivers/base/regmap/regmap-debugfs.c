@@ -86,10 +86,10 @@ static ssize_t regmap_map_read_file(struct file *file, char __user *user_buf,
 		if (regmap_precious(map, i))
 			continue;
 
-		
+		/* If we're in the region the user is trying to read */
 		if (p >= *ppos) {
-			
-			if (buf_pos >= count - 1 - tot_len)
+			/* ...but not beyond it */
+			if (buf_pos + 1 + tot_len >= count)
 				break;
 
 			

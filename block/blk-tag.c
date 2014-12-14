@@ -12,12 +12,16 @@ struct request *blk_queue_find_tag(struct request_queue *q, int tag)
 }
 EXPORT_SYMBOL(blk_queue_find_tag);
 
-static int __blk_free_tags(struct blk_queue_tag *bqt)
+/**
+ * blk_free_tags - release a given set of tag maintenance info
+ * @bqt:	the tag map to free
+ *
+ * Drop the reference count on @bqt and frees it when the last reference
+ * is dropped.
+ */
+void blk_free_tags(struct blk_queue_tag *bqt)
 {
-	int retval;
-
-	retval = atomic_dec_and_test(&bqt->refcnt);
-	if (retval) {
+	if (atomic_dec_and_test(&bqt->refcnt)) {
 		BUG_ON(find_first_bit(bqt->tag_map, bqt->max_depth) <
 							bqt->max_depth);
 
@@ -29,9 +33,8 @@ static int __blk_free_tags(struct blk_queue_tag *bqt)
 
 		kfree(bqt);
 	}
-
-	return retval;
 }
+EXPORT_SYMBOL(blk_free_tags);
 
 void __blk_queue_free_tags(struct request_queue *q)
 {
@@ -40,18 +43,11 @@ void __blk_queue_free_tags(struct request_queue *q)
 	if (!bqt)
 		return;
 
-	__blk_free_tags(bqt);
+	blk_free_tags(bqt);
 
 	q->queue_tags = NULL;
 	queue_flag_clear_unlocked(QUEUE_FLAG_QUEUED, q);
 }
-
-void blk_free_tags(struct blk_queue_tag *bqt)
-{
-	if (unlikely(!__blk_free_tags(bqt)))
-		BUG();
-}
-EXPORT_SYMBOL(blk_free_tags);
 
 void blk_queue_free_tags(struct request_queue *q)
 {
