@@ -21,7 +21,7 @@ static int perf_trace_event_perm(struct ftrace_event_call *tp_event,
 {
 	
 	if (ftrace_event_is_function(tp_event) &&
-	    perf_paranoid_kernel() && !capable(CAP_SYS_ADMIN))
+	    perf_paranoid_tracepoint_raw() && !capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
 	

@@ -560,10 +560,10 @@ static ssize_t usb_device_read(struct file *file, char __user *buf,
 		return -EFAULT;
 
 	mutex_lock(&usb_bus_list_lock);
-	
+	/* print devices for all busses */
 	list_for_each_entry(bus, &usb_bus_list, bus_list) {
-		
-		if (!bus->root_hub)
+		/* recurse through all children of the root hub */
+		if (!bus_to_hcd(bus)->rh_registered)
 			continue;
 		usb_lock_device(bus->root_hub);
 		ret = usb_device_dump(&buf, &nbytes, &skip_bytes, ppos,

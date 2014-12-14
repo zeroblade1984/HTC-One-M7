@@ -63,6 +63,12 @@ void panic(const char *fmt, ...)
 	long i, i_next = 0;
 	int state = 0;
 
+	/*
+	 * Disable local interrupts. This will prevent panic_smp_self_stop
+	 * from deadlocking the first cpu that invokes the panic, since
+	 * there is nothing to prevent an interrupt handler (that runs
+	 * after the panic_lock is acquired) from invoking panic again.
+	 */
 	local_irq_disable();
 
 	if (!spin_trylock(&panic_lock))

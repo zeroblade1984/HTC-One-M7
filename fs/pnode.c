@@ -256,8 +256,10 @@ static void __propagate_umount(struct mount *mnt)
 
 		struct mount *child = __lookup_mnt(&m->mnt,
 					mnt->mnt_mountpoint, 0);
-		if (child && list_empty(&child->mnt_mounts))
+		if (child && list_empty(&child->mnt_mounts)) {
+			list_del_init(&child->mnt_child);
 			list_move_tail(&child->mnt_hash, &mnt->mnt_hash);
+		}
 	}
 }
 

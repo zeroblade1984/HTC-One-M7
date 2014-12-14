@@ -2,8 +2,16 @@
 #error "Please don't include <linux/compiler-gcc.h> directly, include <linux/compiler.h> instead."
 #endif
 
+/*
+ * Common definitions for all gcc versions go here.
+ */
+#define GCC_VERSION (__GNUC__ * 10000 \
+		   + __GNUC_MINOR__ * 100 \
+		   + __GNUC_PATCHLEVEL__)
 
 
+/* Optimization barrier */
+/* The "volatile" is due to gcc bugs */
 #define barrier() __asm__ __volatile__("": : :"memory")
 
 #define RELOC_HIDE(ptr, off)					\

@@ -501,14 +501,16 @@ EXPORT_SYMBOL(mark_buffer_dirty_inode);
 static void __set_page_dirty(struct page *page,
 		struct address_space *mapping, int warn)
 {
-	spin_lock_irq(&mapping->tree_lock);
-	if (page->mapping) {	
+	unsigned long flags;
+
+	spin_lock_irqsave(&mapping->tree_lock, flags);
+	if (page->mapping) {	/* Race with truncate? */	
 		WARN_ON_ONCE(warn && !PageUptodate(page));
 		account_page_dirtied(page, mapping);
 		radix_tree_tag_set(&mapping->page_tree,
 				page_index(page), PAGECACHE_TAG_DIRTY);
 	}
-	spin_unlock_irq(&mapping->tree_lock);
+	spin_unlock_irqrestore(&mapping->tree_lock, flags);
 	__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 }
 
@@ -699,7 +701,9 @@ link_dev_buffers(struct page *page, struct buffer_head *head)
 	attach_page_buffers(page, head);
 }
 
- 
+/*
+ * Initialise the state of a blockdev page's buffers.
+ */ 
 static sector_t
 init_page_buffers(struct page *page, struct block_device *bdev,
 			sector_t block, int size)
@@ -723,9 +727,17 @@ init_page_buffers(struct page *page, struct block_device *bdev,
 		bh = bh->b_this_page;
 	} while (bh != head);
 
+	/*
+	 * Caller needs to validate requested block against end of device.
+	 */
 	return end_block;
 }
 
+/*
+ * Create the page-cache page that contains the requested block.
+ *
+ * This is used purely for blockdev mappings.
+ */
 static int
 grow_dev_page(struct block_device *bdev, sector_t block,
 		pgoff_t index, int size, int sizebits)
@@ -734,7 +746,7 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 	struct page *page;
 	struct buffer_head *bh;
 	sector_t end_block;
-	int ret = 0;		
+	int ret = 0;		/* Will call free_more_memory() */		
 
 	page = find_or_create_page(inode->i_mapping, index,
 		(mapping_gfp_mask(inode->i_mapping) & ~__GFP_FS)|__GFP_MOVABLE);
@@ -747,7 +759,8 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 		bh = page_buffers(page);
 		if (bh->b_size == size) {
 			end_block = init_page_buffers(page, bdev,
-						index << sizebits, size);
+						(sector_t)index << sizebits,
+						size);
 			goto done;
 		}
 		if (!try_to_free_buffers(page))
@@ -760,7 +773,8 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 
 	spin_lock(&inode->i_mapping->private_lock);
 	link_dev_buffers(page, bh);
-	end_block = init_page_buffers(page, bdev, index << sizebits, size);
+	end_block = init_page_buffers(page, bdev, (sector_t)index << sizebits,
+			size);
 	spin_unlock(&inode->i_mapping->private_lock);
 done:
 	ret = (block < end_block) ? 1 : -ENXIO;
@@ -793,14 +807,14 @@ grow_buffers(struct block_device *bdev, sector_t block, int size)
 		return -EIO;
 	}
 
-	
+	/* Create a page with the proper size buffers.. */
 	return grow_dev_page(bdev, block, index, size, sizebits);
 }
 
 static struct buffer_head *
 __getblk_slow(struct block_device *bdev, sector_t block, int size)
 {
-	
+	/* Size must be multiple of hard sectorsize */
 	if (unlikely(size & (bdev_logical_block_size(bdev)-1) ||
 			(size < 512 || size > PAGE_SIZE))) {
 		printk(KERN_ERR "getblk(): invalid block size %d requested\n",

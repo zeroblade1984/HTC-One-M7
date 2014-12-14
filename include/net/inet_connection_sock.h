@@ -289,6 +289,7 @@ extern void inet_csk_reqsk_queue_prune(struct sock *parent,
 				       const unsigned long max_rto);
 
 extern void inet_csk_destroy_sock(struct sock *sk);
+extern void inet_csk_prepare_forced_close(struct sock *sk);
 
 static inline unsigned int inet_csk_listen_poll(const struct sock *sk)
 {
