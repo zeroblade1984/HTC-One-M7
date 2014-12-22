@@ -8442,8 +8442,9 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			dhd_bus_stop(bus, FALSE);
 
 #if defined(OOB_INTR_ONLY)
-			
+			dhd_enable_oob_intr(bus, FALSE);
 			bcmsdh_set_irq(FALSE);
+			bcmsdh_unregister_oob_intr();
 #endif 
 
 			
