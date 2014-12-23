@@ -151,7 +151,6 @@ static u64 get_iowait_time(int cpu)
 #endif
 
 #ifdef CONFIG_DEBUG_KERNEL
-extern void htc_show_interrupts(void);
 extern void htc_timer_stats_onoff(char onoff);
 extern void htc_timer_stats_show(u16 water_mark);
 #endif

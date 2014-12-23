@@ -208,9 +208,9 @@ static int kill_proc(struct task_struct *t, unsigned long addr, int trapno,
 #endif
 	si.si_addr_lsb = compound_trans_order(compound_head(page)) + PAGE_SHIFT;
 
-	if ((flags & MF_ACTION_REQUIRED) && t->mm == current->mm) {
+	if ((flags & MF_ACTION_REQUIRED) && t == current) {
 		si.si_code = BUS_MCEERR_AR;
-		ret = force_sig_info(SIGBUS, &si, current);
+		ret = force_sig_info(SIGBUS, &si, t);
 	} else {
 		/*
 		 * Don't use force here, it's convenient if the signal
@@ -382,12 +382,10 @@ static void kill_procs(struct list_head *to_kill, int forcekill, int trapno,
 	}
 }
 
-static int task_early_kill(struct task_struct *tsk, int force_early)
+static int task_early_kill(struct task_struct *tsk)
 {
 	if (!tsk->mm)
 		return 0;
-	if (force_early)
-		return 1;
 	if (tsk->flags & PF_MCE_PROCESS)
 		return !!(tsk->flags & PF_MCE_EARLY);
 	return sysctl_memory_failure_early_kill;
@@ -397,7 +395,7 @@ static int task_early_kill(struct task_struct *tsk, int force_early)
  * Collect processes when the error hit an anonymous page.
  */
 static void collect_procs_anon(struct page *page, struct list_head *to_kill,
-			      struct to_kill **tkc, int force_early)
+			      struct to_kill **tkc)
 {
 	struct vm_area_struct *vma;
 	struct task_struct *tsk;
@@ -411,7 +409,7 @@ static void collect_procs_anon(struct page *page, struct list_head *to_kill,
 	for_each_process (tsk) {
 		struct anon_vma_chain *vmac;
 
-		if (!task_early_kill(tsk, force_early))
+		if (!task_early_kill(tsk))
 			continue;
 		list_for_each_entry(vmac, &av->head, same_anon_vma) {
 			vma = vmac->vma;
@@ -429,7 +427,7 @@ static void collect_procs_anon(struct page *page, struct list_head *to_kill,
  * Collect processes when the error hit a file mapped page.
  */
 static void collect_procs_file(struct page *page, struct list_head *to_kill,
-			      struct to_kill **tkc, int force_early)
+			      struct to_kill **tkc)
 {
 	struct vm_area_struct *vma;
 	struct task_struct *tsk;
@@ -441,7 +439,7 @@ static void collect_procs_file(struct page *page, struct list_head *to_kill,
 	for_each_process(tsk) {
 		pgoff_t pgoff = page->index << (PAGE_CACHE_SHIFT - PAGE_SHIFT);
 
-		if (!task_early_kill(tsk, force_early))
+		if (!task_early_kill(tsk))
 			continue;
 
 		vma_prio_tree_foreach(vma, &iter, &mapping->i_mmap, pgoff,
@@ -467,8 +465,7 @@ static void collect_procs_file(struct page *page, struct list_head *to_kill,
  * First preallocate one tokill structure outside the spin locks,
  * so that we can kill at least one process reasonably reliable.
  */
-static void collect_procs(struct page *page, struct list_head *tokill,
-				int force_early)
+static void collect_procs(struct page *page, struct list_head *tokill)
 {
 	struct to_kill *tk;
 
@@ -479,9 +476,9 @@ static void collect_procs(struct page *page, struct list_head *tokill,
 	if (!tk)
 		return;
 	if (PageAnon(page))
-		collect_procs_anon(page, tokill, &tk, force_early);
+		collect_procs_anon(page, tokill, &tk);
 	else
-		collect_procs_file(page, tokill, &tk, force_early);
+		collect_procs_file(page, tokill, &tk);
 	kfree(tk);
 }
 
@@ -951,7 +948,7 @@ static int hwpoison_user_mappings(struct page *p, unsigned long pfn,
 	 * there's nothing that can be done.
 	 */
 	if (kill)
-		collect_procs(ppage, &tokill, flags & MF_ACTION_REQUIRED);
+		collect_procs(ppage, &tokill);
 
 	if (hpage != ppage)
 		lock_page(ppage);
@@ -1064,16 +1061,15 @@ int memory_failure(unsigned long pfn, int trapno, int flags)
 			return 0;
 		} else if (PageHuge(hpage)) {
 			/*
-			 * Check "filter hit" and "race with other subpage."
+			 * Check "just unpoisoned", "filter hit", and
+			 * "race with other subpage."
 			 */
 			lock_page(hpage);
-			if (PageHWPoison(hpage)) {
-				if ((hwpoison_filter(p) && TestClearPageHWPoison(p))
-				    || (p != hpage && TestSetPageHWPoison(hpage))) {
-					atomic_long_sub(nr_pages, &mce_bad_pages);
-					unlock_page(hpage);
-					return 0;
-				}
+			if (!PageHWPoison(hpage)
+			    || (hwpoison_filter(p) && TestClearPageHWPoison(p))
+			    || (p != hpage && TestSetPageHWPoison(hpage))) {
+				atomic_long_sub(nr_pages, &mce_bad_pages);
+				return 0;
 			}
 			set_page_hwpoison_huge_page(hpage);
 			res = dequeue_hwpoisoned_huge_page(hpage);
@@ -1125,8 +1121,6 @@ int memory_failure(unsigned long pfn, int trapno, int flags)
 	 */
 	if (!PageHWPoison(p)) {
 		printk(KERN_ERR "MCE %#lx: just unpoisoned\n", pfn);
-		atomic_long_sub(nr_pages, &mce_bad_pages);
-		put_page(hpage);
 		res = 0;
 		goto out;
 	}
@@ -1453,18 +1447,10 @@ static int soft_offline_huge_page(struct page *page, int flags)
 		return ret;
 	}
 done:
-	/* overcommit hugetlb page will be freed to buddy */
-	if (PageHuge(hpage)) {
-		if (!PageHWPoison(hpage))
-			atomic_long_add(1 << compound_trans_order(hpage),
-					&mce_bad_pages);
-		set_page_hwpoison_huge_page(hpage);
-		dequeue_hwpoisoned_huge_page(hpage);
-	} else {
-		SetPageHWPoison(page);
-		atomic_long_inc(&mce_bad_pages);
-	}
-
+	if (!PageHWPoison(hpage))
+		atomic_long_add(1 << compound_trans_order(hpage), &mce_bad_pages);
+	set_page_hwpoison_huge_page(hpage);
+	dequeue_hwpoisoned_huge_page(hpage);
 	/* keep elevated page count for bad page */
 	return ret;
 }
@@ -1495,17 +1481,9 @@ int soft_offline_page(struct page *page, int flags)
 {
 	int ret;
 	unsigned long pfn = page_to_pfn(page);
-	struct page *hpage = compound_trans_head(page);
 
 	if (PageHuge(page))
 		return soft_offline_huge_page(page, flags);
-	if (PageTransHuge(hpage)) {
-		if (PageAnon(hpage) && unlikely(split_huge_page(hpage))) {
-			pr_info("soft offline: %#lx: failed to split THP\n",
-				pfn);
-			return -EBUSY;
-		}
-	}
 
 	ret = get_any_page(page, pfn, flags);
 	if (ret < 0)

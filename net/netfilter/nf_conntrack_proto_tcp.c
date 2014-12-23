@@ -396,10 +396,9 @@ static bool tcp_in_window(const struct nf_conn *ct,
 		ack = sack = receiver->td_end;
 	}
 
-	if (tcph->rst && seq == 0 && state->state == TCP_CONNTRACK_SYN_SENT)
-		/*
-		 * RST sent answering SYN.
-		 */
+	if (seq == end
+	    && (!tcph->rst
+		|| (seq == 0 && state->state == TCP_CONNTRACK_SYN_SENT)))
 		seq = end = sender->td_end;
 
 	pr_debug("tcp_in_window: ");

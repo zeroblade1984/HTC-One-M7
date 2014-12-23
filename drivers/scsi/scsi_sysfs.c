@@ -224,11 +224,11 @@ show_shost_active_mode(struct device *dev,
 
 static DEVICE_ATTR(active_mode, S_IRUGO | S_IWUSR, show_shost_active_mode, NULL);
 
-static int check_reset_type(const char *str)
+static int check_reset_type(char *str)
 {
-	if (sysfs_streq(str, "adapter"))
+	if (strncmp(str, "adapter", 10) == 0)
 		return SCSI_ADAPTER_RESET;
-	else if (sysfs_streq(str, "firmware"))
+	else if (strncmp(str, "firmware", 10) == 0)
 		return SCSI_FIRMWARE_RESET;
 	else
 		return 0;
@@ -241,9 +241,12 @@ store_host_reset(struct device *dev, struct device_attribute *attr,
 	struct Scsi_Host *shost = class_to_shost(dev);
 	struct scsi_host_template *sht = shost->hostt;
 	int ret = -EINVAL;
+	char str[10];
 	int type;
 
-	type = check_reset_type(buf);
+	sscanf(buf, "%s", str);
+	type = check_reset_type(str);
+
 	if (!type)
 		goto exit_store_host_reset;
 
@@ -940,32 +943,28 @@ static void __scsi_remove_target(struct scsi_target *starget)
 void scsi_remove_target(struct device *dev)
 {
 	struct Scsi_Host *shost = dev_to_shost(dev->parent);
-	struct scsi_target *starget, *last = NULL;
+	struct scsi_target *starget, *found;
 	unsigned long flags;
 
-	/*
-	 * remove targets being careful to lookup next entry before
-	 * deleting the last
-	 */
+ restart:
+	found = NULL;
 	spin_lock_irqsave(shost->host_lock, flags);
 	list_for_each_entry(starget, &shost->__targets, siblings) {
 		if (starget->state == STARGET_DEL)
 			continue;
 		if (starget->dev.parent == dev || &starget->dev == dev) {
-			/* assuming new targets arrive at the end */
-			starget->reap_ref++;
-			spin_unlock_irqrestore(shost->host_lock, flags);
-			if (last)
-				scsi_target_reap(last);
-			last = starget;
-			__scsi_remove_target(starget);
-			spin_lock_irqsave(shost->host_lock, flags);
+			found = starget;
+			found->reap_ref++;
+			break;
 		}
 	}
 	spin_unlock_irqrestore(shost->host_lock, flags);
 
-	if (last)
-		scsi_target_reap(last);
+	if (found) {
+		__scsi_remove_target(found);
+		scsi_target_reap(found);
+		goto restart;
+	}
 }
 EXPORT_SYMBOL(scsi_remove_target);
 

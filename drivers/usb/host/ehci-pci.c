@@ -362,8 +362,7 @@ static bool usb_is_intel_switchable_ehci(struct pci_dev *pdev)
 		pdev->vendor == PCI_VENDOR_ID_INTEL &&
 		(pdev->device == 0x1E26 ||
 		 pdev->device == 0x8C2D ||
-		 pdev->device == 0x8C26 ||
-		 pdev->device == 0x9C26);
+		 pdev->device == 0x8C26);
 }
 
 static void ehci_enable_xhci_companion(void)
@@ -549,7 +548,7 @@ static struct pci_driver ehci_pci_driver = {
 	.remove =	usb_hcd_pci_remove,
 	.shutdown = 	usb_hcd_pci_shutdown,
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 	.driver =	{
 		.pm =	&usb_hcd_pci_pm_ops
 	},

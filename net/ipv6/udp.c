@@ -838,17 +838,12 @@ static int udp_v6_push_pending_frames(struct sock *sk)
 	struct udphdr *uh;
 	struct udp_sock  *up = udp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
-	struct flowi6 *fl6;
+	struct flowi6 *fl6 = &inet->cork.fl.u.ip6;
 	int err = 0;
 	int is_udplite = IS_UDPLITE(sk);
 	__wsum csum = 0;
 
-	if (up->pending == AF_INET)
-		return udp_push_pending_frames(sk);
-
-	fl6 = &inet->cork.fl.u.ip6;
-
-	/* Grab the skbuff where UDP header space exists. */
+	
 	if ((skb = skb_peek(&sk->sk_write_queue)) == NULL)
 		goto out;
 
@@ -1294,7 +1289,7 @@ static struct sk_buff *udp6_ufo_fragment(struct sk_buff *skb,
 	fptr = (struct frag_hdr *)(skb_network_header(skb) + unfrag_ip6hlen);
 	fptr->nexthdr = nexthdr;
 	fptr->reserved = 0;
-	fptr->identification = skb_shinfo(skb)->ip6_frag_id;
+	ipv6_select_ident(fptr, (struct rt6_info *)skb_dst(skb));
 
 	segs = skb_segment(skb, features);
 
@@ -1381,20 +1376,8 @@ int __net_init udp6_proc_init(struct net *net)
 void udp6_proc_exit(struct net *net) {
 	udp_proc_unregister(net, &udp6_seq_afinfo);
 }
-#endif /* CONFIG_PROC_FS */
+#endif 
 
-void udp_v6_clear_sk(struct sock *sk, int size)
-{
-	struct inet_sock *inet = inet_sk(sk);
-
-	/* we do not want to clear pinet6 field, because of RCU lookups */
-	sk_prot_clear_portaddr_nulls(sk, offsetof(struct inet_sock, pinet6));
-
-	size -= offsetof(struct inet_sock, pinet6) + sizeof(inet->pinet6);
-	memset(&inet->pinet6 + 1, 0, size);
-}
-
-/* ------------------------------------------------------------------------ */
 
 struct proto udpv6_prot = {
 	.name		   = "UDPv6",
@@ -1424,7 +1407,7 @@ struct proto udpv6_prot = {
 	.compat_setsockopt = compat_udpv6_setsockopt,
 	.compat_getsockopt = compat_udpv6_getsockopt,
 #endif
-	.clear_sk	   = udp_v6_clear_sk,
+	.clear_sk	   = sk_prot_clear_portaddr_nulls,
 };
 
 static struct inet_protosw udpv6_protosw = {

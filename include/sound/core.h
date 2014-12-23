@@ -112,9 +112,7 @@ struct snd_card {
 	int controls_count;		
 	int user_ctl_count;		
 	struct list_head controls;	
-	struct list_head ctl_files;
-	struct mutex user_ctl_lock;	/* protects user controls against
-					   concurrent access */	
+	struct list_head ctl_files;	
 
 	struct snd_info_entry *proc_root;	
 	struct snd_info_entry *proc_id;	
@@ -126,7 +124,6 @@ struct snd_card {
 	int shutdown;			
 	int free_on_last_close;		
 	wait_queue_head_t shutdown_sleep;
-	atomic_t refcount;		/* refcount for disconnection */
 	struct device *dev;		
 	struct device *card_dev;	
 
@@ -182,8 +179,7 @@ struct snd_minor {
 	int device;			
 	const struct file_operations *f_ops;	
 	void *private_data;		
-	struct device *dev;
-	struct snd_card *card_ptr;	/* assigned card instance */		
+	struct device *dev;		
 };
 
 static inline struct device *snd_card_get_device_link(struct snd_card *card)
@@ -268,7 +264,6 @@ int snd_card_info_done(void);
 int snd_component_add(struct snd_card *card, const char *component);
 int snd_card_file_add(struct snd_card *card, struct file *file);
 int snd_card_file_remove(struct snd_card *card, struct file *file);
-void snd_card_unref(struct snd_card *card);
 
 #define snd_card_set_dev(card, devptr) ((card)->dev = (devptr))
 

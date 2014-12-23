@@ -531,22 +531,10 @@ retry:
 
 static void iommu_poll_events(struct amd_iommu *iommu)
 {
-	u32 head, tail, status;
+	u32 head, tail;
 	unsigned long flags;
 
 	spin_lock_irqsave(&iommu->lock, flags);
-
-	/* enable event interrupts again */
-	do {
-		/*
-		 * Workaround for Erratum ERBT1312
-		 * Clearing the EVT_INT bit may race in the hardware, so read
-		 * it again and make sure it was really cleared
-		 */
-		status = readl(iommu->mmio_base + MMIO_STATUS_OFFSET);
-		writel(MMIO_STATUS_EVT_INT_MASK,
-		       iommu->mmio_base + MMIO_STATUS_OFFSET);
-	} while (status & MMIO_STATUS_EVT_INT_MASK);
 
 	head = readl(iommu->mmio_base + MMIO_EVT_HEAD_OFFSET);
 	tail = readl(iommu->mmio_base + MMIO_EVT_TAIL_OFFSET);
@@ -584,24 +572,15 @@ static void iommu_handle_ppr_entry(struct amd_iommu *iommu, u64 *raw)
 static void iommu_poll_ppr_log(struct amd_iommu *iommu)
 {
 	unsigned long flags;
-	u32 head, tail, status;
+	u32 head, tail;
 
 	if (iommu->ppr_log == NULL)
 		return;
 
-	spin_lock_irqsave(&iommu->lock, flags);
-
 	/* enable ppr interrupts again */
-	do {
-		/*
-		 * Workaround for Erratum ERBT1312
-		 * Clearing the PPR_INT bit may race in the hardware, so read
-		 * it again and make sure it was really cleared
-		 */
-		status = readl(iommu->mmio_base + MMIO_STATUS_OFFSET);
-		writel(MMIO_STATUS_PPR_INT_MASK,
-		       iommu->mmio_base + MMIO_STATUS_OFFSET);
-	} while (status & MMIO_STATUS_PPR_INT_MASK);
+	writel(MMIO_STATUS_PPR_INT_MASK, iommu->mmio_base + MMIO_STATUS_OFFSET);
+
+	spin_lock_irqsave(&iommu->lock, flags);
 
 	head = readl(iommu->mmio_base + MMIO_PPR_HEAD_OFFSET);
 	tail = readl(iommu->mmio_base + MMIO_PPR_TAIL_OFFSET);
@@ -1309,10 +1288,6 @@ static unsigned long iommu_unmap_page(struct protection_domain *dom,
 
 			/* Large PTE found which maps this address */
 			unmap_size = PTE_PAGE_SIZE(*pte);
-
-			/* Only unmap from the first pte in the page */
-			if ((unmap_size - 1) & bus_addr)
-				break;
 			count      = PAGE_SIZE_PTE_COUNT(unmap_size);
 			for (i = 0; i < count; i++)
 				pte[i] = 0ULL;
@@ -1322,7 +1297,7 @@ static unsigned long iommu_unmap_page(struct protection_domain *dom,
 		unmapped += unmap_size;
 	}
 
-	BUG_ON(unmapped && !is_power_of_2(unmapped));
+	BUG_ON(!is_power_of_2(unmapped));
 
 	return unmapped;
 }
@@ -2295,16 +2270,18 @@ static int device_change_notifier(struct notifier_block *nb,
 
 		/* allocate a protection domain if a device is added */
 		dma_domain = find_protection_domain(devid);
-		if (!dma_domain) {
-			dma_domain = dma_ops_domain_alloc();
-			if (!dma_domain)
-				goto out;
-			dma_domain->target_dev = devid;
+		if (dma_domain)
+			goto out;
+		dma_domain = dma_ops_domain_alloc();
+		if (!dma_domain)
+			goto out;
+		dma_domain->target_dev = devid;
 
-			spin_lock_irqsave(&iommu_pd_list_lock, flags);
-			list_add_tail(&dma_domain->list, &iommu_pd_list);
-			spin_unlock_irqrestore(&iommu_pd_list_lock, flags);
-		}
+		spin_lock_irqsave(&iommu_pd_list_lock, flags);
+		list_add_tail(&dma_domain->list, &iommu_pd_list);
+		spin_unlock_irqrestore(&iommu_pd_list_lock, flags);
+
+		dev_data = get_dev_data(dev);
 
 		dev->archdata.dma_ops = &amd_iommu_dma_ops;
 
@@ -3028,16 +3005,14 @@ free_domains:
 
 static void cleanup_domain(struct protection_domain *domain)
 {
-	struct iommu_dev_data *entry;
+	struct iommu_dev_data *dev_data, *next;
 	unsigned long flags;
 
 	write_lock_irqsave(&amd_iommu_devtable_lock, flags);
 
-	while (!list_empty(&domain->dev_list)) {
-		entry = list_first_entry(&domain->dev_list,
-					 struct iommu_dev_data, list);
-		__detach_device(entry);
-		atomic_set(&entry->bind, 0);
+	list_for_each_entry_safe(dev_data, next, &domain->dev_list, list) {
+		__detach_device(dev_data);
+		atomic_set(&dev_data->bind, 0);
 	}
 
 	write_unlock_irqrestore(&amd_iommu_devtable_lock, flags);

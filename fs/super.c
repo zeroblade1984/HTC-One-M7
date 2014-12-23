@@ -210,14 +210,15 @@ EXPORT_SYMBOL(deactivate_super);
 
 static int grab_super(struct super_block *s) __releases(sb_lock)
 {
+	if (atomic_inc_not_zero(&s->s_active)) {
+		spin_unlock(&sb_lock);
+		return 1;
+	}
+	
 	s->s_count++;
 	spin_unlock(&sb_lock);
 	
 	down_write(&s->s_umount);
-	if ((s->s_flags & MS_BORN) && atomic_inc_not_zero(&s->s_active)) {
-		put_super(s);
-		return 1;
-	}
 	up_write(&s->s_umount);
 	put_super(s);
 	return 0;
@@ -310,6 +311,11 @@ retry:
 				up_write(&s->s_umount);
 				destroy_super(s);
 				s = NULL;
+			}
+			down_write(&old->s_umount);
+			if (unlikely(!(old->s_flags & MS_BORN))) {
+				deactivate_locked_super(old);
+				goto retry;
 			}
 			return old;
 		}
@@ -490,10 +496,10 @@ restart:
 		if (hlist_unhashed(&sb->s_instances))
 			continue;
 		if (sb->s_bdev == bdev) {
-			if (!grab_super(sb))
+			if (grab_super(sb)) 
+				return sb;
+			else
 				goto restart;
-			up_write(&sb->s_umount);
-			return sb;
 		}
 	}
 	spin_unlock(&sb_lock);

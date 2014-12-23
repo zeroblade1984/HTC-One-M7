@@ -117,7 +117,6 @@ struct sigaction {
 	unsigned long sa_flags;
 	void (*sa_restorer)(void);
 };
-#define __ARCH_HAS_SA_RESTORER
 
 #define sa_handler	_u._sa_handler
 #define sa_sigaction	_u._sa_sigaction

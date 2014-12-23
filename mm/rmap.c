@@ -32,7 +32,6 @@
 #include <linux/mmu_notifier.h>
 #include <linux/migrate.h>
 #include <linux/hugetlb.h>
-#include <linux/backing-dev.h>
 
 #include <htc_debug/stability/htc_report_meminfo.h>
 
@@ -60,7 +59,6 @@ static inline void anon_vma_free(struct anon_vma *anon_vma)
 {
 	VM_BUG_ON(atomic_read(&anon_vma->refcount));
 
-	might_sleep();
 	if (mutex_is_locked(&anon_vma->root->mutex)) {
 		anon_vma_lock(anon_vma);
 		anon_vma_unlock(anon_vma);
@@ -300,9 +298,8 @@ struct anon_vma *page_get_anon_vma(struct page *page)
 	}
 
 	if (!page_mapped(page)) {
-		rcu_read_unlock();
 		put_anon_vma(anon_vma);
-		return NULL;
+		anon_vma = NULL;
 	}
 out:
 	rcu_read_unlock();
@@ -340,9 +337,9 @@ struct anon_vma *page_lock_anon_vma(struct page *page)
 	}
 
 	if (!page_mapped(page)) {
-		rcu_read_unlock();
 		put_anon_vma(anon_vma);
-		return NULL;
+		anon_vma = NULL;
+		goto out;
 	}
 
 	
@@ -409,11 +406,7 @@ pte_t *__page_check_address(struct page *page, struct mm_struct *mm,
 	spinlock_t *ptl;
 
 	if (unlikely(PageHuge(page))) {
-		/* when pud is not present, pte will be NULL */
 		pte = huge_pte_offset(mm, address);
-		if (!pte)
-			return NULL;
-
 		ptl = &mm->page_table_lock;
 		goto check;
 	}
@@ -690,8 +683,11 @@ int page_mkclean(struct page *page)
 
 	if (page_mapped(page)) {
 		struct address_space *mapping = page_mapping(page);
-		if (mapping)
+		if (mapping) {
 			ret = page_mkclean_file(mapping, page);
+			if (page_test_and_clear_dirty(page_to_pfn(page), 1))
+				ret = 1;
+		}
 	}
 
 	return ret;
@@ -799,7 +795,6 @@ void page_add_file_rmap(struct page *page)
 
 void page_remove_rmap(struct page *page)
 {
-	struct address_space *mapping = page_mapping(page);
 	bool anon = PageAnon(page);
 	bool locked;
 	unsigned long flags;
@@ -817,19 +812,8 @@ void page_remove_rmap(struct page *page)
 	 * this if the page is anon, so about to be freed; but perhaps
 	 * not if it's in swapcache - there might be another pte slot
 	 * containing the swap entry, but page not yet written to swap.
-	 *
-	 * And we can skip it on file pages, so long as the filesystem
-	 * participates in dirty tracking; but need to catch shm and tmpfs
-	 * and ramfs pages which have been modified since creation by read
-	 * fault.
-	 *
-	 * Note that mapping must be decided above, before decrementing
-	 * mapcount (which luckily provides a barrier): once page is unmapped,
-	 * it could be truncated and page->mapping reset to NULL at any moment.
-	 * Note also that we are relying on page_mapping(page) to set mapping
-	 * to &swapper_space when PageSwapCache(page).
 	 */
-	if (mapping && !mapping_cap_account_dirty(mapping) &&
+	if ((!anon || PageSwapCache(page)) &&
 	    page_test_and_clear_dirty(page_to_pfn(page), 1))
 		set_page_dirty(page);
 	if (unlikely(PageHuge(page)))
@@ -1006,20 +990,10 @@ static int try_to_unmap_cluster(unsigned long cursor, unsigned int *mapcount,
 		BUG_ON(!page || PageAnon(page));
 
 		if (locked_vma) {
-			if (page == check_page) {
-				/* we know we have check_page locked */
-				mlock_vma_page(page);
+			mlock_vma_page(page);   
+			if (page == check_page)
 				ret = SWAP_MLOCK;
-			} else if (trylock_page(page)) {
-				/*
-				 * If we can lock the page, perform mlock.
-				 * Otherwise leave the page alone, it will be
-				 * eventually encountered again later.
-				 */
-				mlock_vma_page(page);
-				unlock_page(page);
-			}
-			continue;	/* don't unmap */	
+			continue;	
 		}
 
 		if (ptep_clear_flush_young_notify(vma, address, pte))
@@ -1205,9 +1179,10 @@ void __put_anon_vma(struct anon_vma *anon_vma)
 {
 	struct anon_vma *root = anon_vma->root;
 
-	anon_vma_free(anon_vma);
 	if (root != anon_vma && atomic_dec_and_test(&root->refcount))
 		anon_vma_free(root);
+
+	anon_vma_free(anon_vma);
 }
 
 #ifdef CONFIG_MIGRATION

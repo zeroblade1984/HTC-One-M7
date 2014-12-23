@@ -38,13 +38,7 @@ static const struct usb_device_id id_table[] = {
 	{DEVICE_G1K(0x04da, 0x250c)},	
 	{DEVICE_G1K(0x413c, 0x8172)},	
 	{DEVICE_G1K(0x413c, 0x8171)},	
-	{DEVICE_G1K(0x1410, 0xa001)},	/* Novatel/Verizon USB-1000 */
-	{DEVICE_G1K(0x1410, 0xa002)},	/* Novatel Gobi Modem device */
-	{DEVICE_G1K(0x1410, 0xa003)},	/* Novatel Gobi Modem device */
-	{DEVICE_G1K(0x1410, 0xa004)},	/* Novatel Gobi Modem device */
-	{DEVICE_G1K(0x1410, 0xa005)},	/* Novatel Gobi Modem device */
-	{DEVICE_G1K(0x1410, 0xa006)},	/* Novatel Gobi Modem device */
-	{DEVICE_G1K(0x1410, 0xa007)},	/* Novatel Gobi Modem device */	
+	{DEVICE_G1K(0x1410, 0xa001)},	
 	{DEVICE_G1K(0x1410, 0xa008)},	
 	{DEVICE_G1K(0x0b05, 0x1776)},	
 	{DEVICE_G1K(0x0b05, 0x1774)},	
@@ -62,9 +56,8 @@ static const struct usb_device_id id_table[] = {
 	{DEVICE_G1K(0x05c6, 0x9221)},	
 	{DEVICE_G1K(0x05c6, 0x9231)},	
 	{DEVICE_G1K(0x1f45, 0x0001)},	
-	{DEVICE_G1K(0x1bc7, 0x900e)},	/* Telit Gobi QDL device */
 
-	/* Gobi 2000 devices */
+	
 	{USB_DEVICE(0x1410, 0xa010)},	
 	{USB_DEVICE(0x1410, 0xa011)},	
 	{USB_DEVICE(0x1410, 0xa012)},	
@@ -115,8 +108,7 @@ static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x413c, 0x8194)},	
 	{USB_DEVICE(0x1199, 0x9013)},	
 	{USB_DEVICE(0x12D1, 0x14F0)},	
-	{USB_DEVICE(0x12D1, 0x14F1)},
-	{USB_DEVICE(0x0AF0, 0x8120)},	/* Option GTM681W */	
+	{USB_DEVICE(0x12D1, 0x14F1)},	
 	{USB_DEVICE(0x05c6, 0x9048)},	
 	{USB_DEVICE(0x05c6, 0x908a)},   
 	{USB_DEVICE(0x05c6, 0x904C)},	

@@ -23,7 +23,6 @@
 
 #include <linux/list.h>
 #include <linux/device.h>
-#include <linux/mutex.h>
 #include <linux/videodev2.h>
 
 struct v4l2_ctrl_handler;
