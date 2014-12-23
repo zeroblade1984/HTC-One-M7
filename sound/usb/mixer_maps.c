@@ -248,10 +248,6 @@ static struct usbmix_name_map hercules_usb51_map[] = {
 	{ 0 }				
 };
 
-static const struct usbmix_name_map kef_x300a_map[] = {
-	{ 10, NULL }, /* firmware locks up (?) when we try to access this FU */
-	{ 0 }
-};
 
 static struct usbmix_ctl_map usbmix_ctl_maps[] = {
 	{
@@ -313,10 +309,6 @@ static struct usbmix_ctl_map usbmix_ctl_maps[] = {
 		.map = scratch_live_map,
 		.ignore_ctl_error = 1,
 	},
-	{
-		.id = USB_ID(0x27ac, 0x1000),
-		.map = kef_x300a_map,
-	},
-	{ 0 } /* terminator */
+	{ 0 } 
 };
 

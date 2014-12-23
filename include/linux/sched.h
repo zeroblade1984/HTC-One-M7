@@ -120,7 +120,6 @@ extern unsigned long this_cpu_load(void);
 
 
 extern void calc_global_load(unsigned long ticks);
-extern void update_cpu_load_nohz(void);
 
 extern unsigned long get_parent_ip(unsigned long addr);
 
@@ -325,13 +324,7 @@ static inline void arch_pick_mmap_layout(struct mm_struct *mm) {}
 extern void set_dumpable(struct mm_struct *mm, int value);
 extern int get_dumpable(struct mm_struct *mm);
 
-#define SUID_DUMP_DISABLE	0	/* No setuid dumping */
-#define SUID_DUMP_USER		1	/* Dump as user of process */
-#define SUID_DUMP_ROOT		2	/* Dump as root */
-
-/* mm flags */
-/* dumpable bits */
-#define MMF_DUMPABLE      0  /* core dump is permitted */
+#define MMF_DUMPABLE      0  
 #define MMF_DUMP_SECURELY 1  
 
 #define MMF_DUMPABLE_BITS 2
@@ -983,7 +976,6 @@ struct sched_entity {
 struct sched_rt_entity {
 	struct list_head run_list;
 	unsigned long timeout;
-	unsigned long watchdog_stamp;
 	unsigned int time_slice;
 	int nr_cpus_allowed;
 
@@ -1026,9 +1018,6 @@ struct task_struct {
 	const struct sched_class *sched_class;
 	struct sched_entity se;
 	struct sched_rt_entity rt;
-#ifdef CONFIG_CGROUP_SCHED
-	struct task_group *sched_task_group;
-#endif
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	
@@ -1090,7 +1079,6 @@ struct task_struct {
 	
 	unsigned irq_thread:1;
 #endif
-	unsigned long atomic_flags; /* Flags needing atomic access. */
 
 	pid_t pid;
 	pid_t tgid;
@@ -1470,7 +1458,9 @@ extern int task_fork_unregister(struct notifier_block *n);
 #define PF_LESS_THROTTLE 0x00100000	
 #define PF_KTHREAD	0x00200000	
 #define PF_RANDOMIZE	0x00400000	
-#define PF_SWAPWRITE	0x00800000		
+#define PF_SWAPWRITE	0x00800000	
+#define PF_SPREAD_PAGE	0x01000000	
+#define PF_SPREAD_SLAB	0x02000000	
 #define PF_THREAD_BOUND	0x04000000	
 #define PF_MCE_EARLY    0x08000000      
 #define PF_MEMPOLICY	0x10000000	
@@ -1489,20 +1479,6 @@ extern int task_fork_unregister(struct notifier_block *n);
 	do { (child)->flags &= ~PF_USED_MATH, (child)->flags |= current->flags & PF_USED_MATH; } while (0)
 #define tsk_used_math(p) ((p)->flags & PF_USED_MATH)
 #define used_math() tsk_used_math(current)
-
-/* Per-process atomic flags. */
-#define PFA_SPREAD_PAGE  1      /* Spread page cache over cpuset */
-#define PFA_SPREAD_SLAB  2      /* Spread some slab caches over cpuset */
-
-#define TASK_PFA_TEST(name, func)					\
-	static inline bool task_##func(struct task_struct *p)		\
-	{ return test_bit(PFA_##name, &p->atomic_flags); }
-#define TASK_PFA_SET(name, func)					\
-	static inline void task_set_##func(struct task_struct *p)	\
-	{ set_bit(PFA_##name, &p->atomic_flags); }
-#define TASK_PFA_CLEAR(name, func)					\
-	static inline void task_clear_##func(struct task_struct *p)	\
-	{ clear_bit(PFA_##name, &p->atomic_flags); }
 
 #define JOBCTL_STOP_SIGMASK	0xffff	
 
@@ -1599,14 +1575,6 @@ static inline int set_cpus_allowed(struct task_struct *p, cpumask_t new_mask)
 	return set_cpus_allowed_ptr(p, &new_mask);
 }
 #endif
-
-TASK_PFA_TEST(SPREAD_PAGE, spread_page)
-TASK_PFA_SET(SPREAD_PAGE, spread_page)
-TASK_PFA_CLEAR(SPREAD_PAGE, spread_page)
-
-TASK_PFA_TEST(SPREAD_SLAB, spread_slab)
-TASK_PFA_SET(SPREAD_SLAB, spread_slab)
-TASK_PFA_CLEAR(SPREAD_SLAB, spread_slab)
 
 extern unsigned long long notrace sched_clock(void);
 extern u64 cpu_clock(int cpu);
@@ -2039,12 +2007,14 @@ static inline void threadgroup_change_end(struct task_struct *tsk)
 
 static inline void threadgroup_lock(struct task_struct *tsk)
 {
+	mutex_lock(&tsk->signal->cred_guard_mutex);
 	down_write(&tsk->signal->group_rwsem);
 }
 
 static inline void threadgroup_unlock(struct task_struct *tsk)
 {
 	up_write(&tsk->signal->group_rwsem);
+	mutex_unlock(&tsk->signal->cred_guard_mutex);
 }
 #else
 static inline void threadgroup_change_begin(struct task_struct *tsk) {}
@@ -2274,7 +2244,7 @@ extern int sched_group_set_rt_period(struct task_group *tg,
 extern long sched_group_rt_period(struct task_group *tg);
 extern int sched_rt_can_attach(struct task_group *tg, struct task_struct *tsk);
 #endif
-#endif /* CONFIG_CGROUP_SCHED */
+#endif
 
 extern int task_can_switch_user(struct user_struct *up,
 					struct task_struct *tsk);

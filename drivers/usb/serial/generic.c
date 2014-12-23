@@ -214,7 +214,12 @@ retry:
 		return result;
 	}
 
-	goto retry;	/* try sending off another urb */
+	if (!in_irq())
+		goto retry;
+
+	clear_bit_unlock(USB_SERIAL_WRITE_BUSY, &port->flags);
+
+	return 0;
 }
 
 /**

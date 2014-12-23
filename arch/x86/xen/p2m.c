@@ -714,6 +714,9 @@ int m2p_add_override(unsigned long mfn, struct page *page,
 
 			xen_mc_issue(PARAVIRT_LAZY_MMU);
 		}
+		/* let's use dev_bus_addr to record the old mfn instead */
+		kmap_op->dev_bus_addr = page->index;
+		page->index = (unsigned long) kmap_op;
 	}
 	spin_lock_irqsave(&m2p_override_lock, flags);
 	list_add(&page->lru,  &m2p_overrides[mfn_hash(mfn)]);
@@ -740,8 +743,7 @@ int m2p_add_override(unsigned long mfn, struct page *page,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(m2p_add_override);
-int m2p_remove_override(struct page *page,
-		struct gnttab_map_grant_ref *kmap_op)
+int m2p_remove_override(struct page *page, bool clear_pte)
 {
 	unsigned long flags;
 	unsigned long mfn;
@@ -771,8 +773,10 @@ int m2p_remove_override(struct page *page,
 	WARN_ON(!PagePrivate(page));
 	ClearPagePrivate(page);
 
-	set_phys_to_machine(pfn, page->index);
-	if (kmap_op != NULL) {
+	if (clear_pte) {
+		struct gnttab_map_grant_ref *map_op =
+			(struct gnttab_map_grant_ref *) page->index;
+		set_phys_to_machine(pfn, map_op->dev_bus_addr);
 		if (!PageHighMem(page)) {
 			struct multicall_space mcs;
 			struct gnttab_unmap_grant_ref *unmap_op;
@@ -784,13 +788,13 @@ int m2p_remove_override(struct page *page,
 			 * issued. In this case handle is going to -1 because
 			 * it hasn't been modified yet.
 			 */
-			if (kmap_op->handle == -1)
+			if (map_op->handle == -1)
 				xen_mc_flush();
 			/*
-			 * Now if kmap_op->handle is negative it means that the
+			 * Now if map_op->handle is negative it means that the
 			 * hypercall actually returned an error.
 			 */
-			if (kmap_op->handle == GNTST_general_error) {
+			if (map_op->handle == GNTST_general_error) {
 				printk(KERN_WARNING "m2p_remove_override: "
 						"pfn %lx mfn %lx, failed to modify kernel mappings",
 						pfn, mfn);
@@ -800,8 +804,8 @@ int m2p_remove_override(struct page *page,
 			mcs = xen_mc_entry(
 					sizeof(struct gnttab_unmap_grant_ref));
 			unmap_op = mcs.args;
-			unmap_op->host_addr = kmap_op->host_addr;
-			unmap_op->handle = kmap_op->handle;
+			unmap_op->host_addr = map_op->host_addr;
+			unmap_op->handle = map_op->handle;
 			unmap_op->dev_bus_addr = 0;
 
 			MULTI_grant_table_op(mcs.mc,
@@ -812,9 +816,10 @@ int m2p_remove_override(struct page *page,
 			set_pte_at(&init_mm, address, ptep,
 					pfn_pte(pfn, PAGE_KERNEL));
 			__flush_tlb_single(address);
-			kmap_op->host_addr = 0;
+			map_op->host_addr = 0;
 		}
-	}
+	} else
+		set_phys_to_machine(pfn, page->index);
 
 	/* p2m(m2p(mfn)) == FOREIGN_FRAME(mfn): the mfn is already present
 	 * somewhere in this domain, even before being added to the

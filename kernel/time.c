@@ -307,10 +307,11 @@ unsigned long usecs_to_jiffies(const unsigned int u)
 }
 EXPORT_SYMBOL(usecs_to_jiffies);
 
-static unsigned long
-__timespec_to_jiffies(unsigned long sec, long nsec)
+unsigned long
+timespec_to_jiffies(const struct timespec *value)
 {
-	nsec = nsec + TICK_NSEC - 1;
+	unsigned long sec = value->tv_sec;
+	long nsec = value->tv_nsec + TICK_NSEC - 1;
 
 	if (sec >= MAX_SEC_IN_JIFFIES){
 		sec = MAX_SEC_IN_JIFFIES;
@@ -321,13 +322,6 @@ __timespec_to_jiffies(unsigned long sec, long nsec)
 		 (NSEC_JIFFIE_SC - SEC_JIFFIE_SC))) >> SEC_JIFFIE_SC;
 
 }
-
-unsigned long
-timespec_to_jiffies(const struct timespec *value)
-{
-	return __timespec_to_jiffies(value->tv_sec, value->tv_nsec);
-}
-
 EXPORT_SYMBOL(timespec_to_jiffies);
 
 void
@@ -340,27 +334,19 @@ jiffies_to_timespec(const unsigned long jiffies, struct timespec *value)
 }
 EXPORT_SYMBOL(jiffies_to_timespec);
 
-/*
- * We could use a similar algorithm to timespec_to_jiffies (with a
- * different multiplier for usec instead of nsec). But this has a
- * problem with rounding: we can't exactly add TICK_NSEC - 1 to the
- * usec value, since it's not necessarily integral.
- *
- * We could instead round in the intermediate scaled representation
- * (i.e. in units of 1/2^(large scale) jiffies) but that's also
- * perilous: the scaling introduces a small positive error, which
- * combined with a division-rounding-upward (i.e. adding 2^(scale) - 1
- * units to the intermediate before shifting) leads to accidental
- * overflow and overestimates.
- *
- * At the cost of one additional multiplication by a constant, just
- * use the timespec implementation.
- */
 unsigned long
 timeval_to_jiffies(const struct timeval *value)
 {
-	return __timespec_to_jiffies(value->tv_sec,
-				     value->tv_usec * NSEC_PER_USEC);
+	unsigned long sec = value->tv_sec;
+	long usec = value->tv_usec;
+
+	if (sec >= MAX_SEC_IN_JIFFIES){
+		sec = MAX_SEC_IN_JIFFIES;
+		usec = 0;
+	}
+	return (((u64)sec * SEC_CONVERSION) +
+		(((u64)usec * USEC_CONVERSION + USEC_ROUND) >>
+		 (USEC_JIFFIE_SC - SEC_JIFFIE_SC))) >> SEC_JIFFIE_SC;
 }
 EXPORT_SYMBOL(timeval_to_jiffies);
 

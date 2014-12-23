@@ -481,7 +481,7 @@ static int smsusb_resume(struct usb_interface *intf)
 	return 0;
 }
 
-static const struct usb_device_id smsusb_id_table[] = {
+static const struct usb_device_id smsusb_id_table[] __devinitconst = {
 	{ USB_DEVICE(0x187f, 0x0010),
 		.driver_info = SMS1XXX_BOARD_SIANO_STELLAR },
 	{ USB_DEVICE(0x187f, 0x0100),

@@ -131,6 +131,8 @@ static int esp_output(struct xfrm_state *x, struct sk_buff *skb)
 
 	
 
+	err = -ENOMEM;
+
 	esp = x->data;
 	aead = esp->aead;
 	alen = crypto_aead_authsize(aead);
@@ -166,10 +168,8 @@ static int esp_output(struct xfrm_state *x, struct sk_buff *skb)
 	}
 
 	tmp = esp_alloc_tmp(aead, nfrags + sglists, seqhilen);
-	if (!tmp) {
-		err = -ENOMEM;
+	if (!tmp)
 		goto error;
-	}
 
 	seqhi = esp_tmp_seqhi(tmp);
 	iv = esp_tmp_iv(aead, tmp, seqhilen);

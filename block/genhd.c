@@ -21,13 +21,9 @@
 static DEFINE_MUTEX(block_class_lock);
 struct kobject *block_depr;
 
-/* for extended dynamic devt allocation, currently only one major is used */
-#define NR_EXT_DEVT		(1 << MINORBITS)
+#define MAX_EXT_DEVT		(1 << MINORBITS)
 
-/* For extended devt allocation.  ext_devt_lock prevents look up
- * results from going away underneath its user.
- */
-static DEFINE_SPINLOCK(ext_devt_lock);
+static DEFINE_MUTEX(ext_devt_mutex);
 static DEFINE_IDR(ext_devt_idr);
 
 static struct device_type disk_type;
@@ -311,17 +307,16 @@ int blk_alloc_devt(struct hd_struct *part, dev_t *devt)
 	do {
 		if (!idr_pre_get(&ext_devt_idr, GFP_KERNEL))
 			return -ENOMEM;
-		spin_lock(&ext_devt_lock);
 		rc = idr_get_new(&ext_devt_idr, part, &idx);
-		if (!rc && idx >= NR_EXT_DEVT) {
-			idr_remove(&ext_devt_idr, idx);
-			rc = -EBUSY;
-		}
-		spin_unlock(&ext_devt_lock);
 	} while (rc == -EAGAIN);
 
 	if (rc)
 		return rc;
+
+	if (idx > MAX_EXT_DEVT) {
+		idr_remove(&ext_devt_idr, idx);
+		return -EBUSY;
+	}
 
 	*devt = MKDEV(BLOCK_EXT_MAJOR, blk_mangle_minor(idx));
 	return 0;
@@ -329,13 +324,15 @@ int blk_alloc_devt(struct hd_struct *part, dev_t *devt)
 
 void blk_free_devt(dev_t devt)
 {
+	might_sleep();
+
 	if (devt == MKDEV(0, 0))
 		return;
 
 	if (MAJOR(devt) == BLOCK_EXT_MAJOR) {
-		spin_lock(&ext_devt_lock);
+		mutex_lock(&ext_devt_mutex);
 		idr_remove(&ext_devt_idr, blk_mangle_minor(MINOR(devt)));
-		spin_unlock(&ext_devt_lock);
+		mutex_unlock(&ext_devt_mutex);
 	}
 }
 
@@ -393,7 +390,7 @@ static void register_disk(struct gendisk *disk)
 
 	ddev->parent = disk->driverfs_dev;
 
-	dev_set_name(ddev, "%s", disk->disk_name);
+	dev_set_name(ddev, disk->disk_name);
 
 	
 	dev_set_uevent_suppress(ddev, 1);
@@ -500,6 +497,7 @@ void del_gendisk(struct gendisk *disk)
 	disk_part_iter_exit(&piter);
 
 	invalidate_partition(disk, 0);
+	blk_free_devt(disk_to_dev(disk)->devt);
 	set_capacity(disk, 0);
 	disk->flags &= ~GENHD_FL_UP;
 
@@ -580,13 +578,13 @@ struct gendisk *get_gendisk(dev_t devt, int *partno)
 	} else {
 		struct hd_struct *part;
 
-		spin_lock(&ext_devt_lock);
+		mutex_lock(&ext_devt_mutex);
 		part = idr_find(&ext_devt_idr, blk_mangle_minor(MINOR(devt)));
 		if (part && get_disk(part_to_disk(part))) {
 			*partno = part->partno;
 			disk = part_to_disk(part);
 		}
-		spin_unlock(&ext_devt_lock);
+		mutex_unlock(&ext_devt_mutex);
 	}
 
 	return disk;
@@ -941,7 +939,6 @@ static void disk_release(struct device *dev)
 {
 	struct gendisk *disk = dev_to_disk(dev);
 
-	blk_free_devt(dev->devt);
 	disk_release_events(disk);
 	kfree(disk->random);
 	disk_replace_part_tbl(disk, NULL);

@@ -251,9 +251,10 @@ out_err:
 	return err;
 }
 
-static int lockd_up_net(struct svc_serv *serv, struct net *net)
+static int lockd_up_net(struct net *net)
 {
 	struct lockd_net *ln = net_generic(net, lockd_net_id);
+	struct svc_serv *serv = nlmsvc_rqst->rq_server;
 	int error;
 
 	if (ln->nlmsvc_users++)
@@ -275,9 +276,10 @@ err_rpcb:
 	return error;
 }
 
-static void lockd_down_net(struct svc_serv *serv, struct net *net)
+static void lockd_down_net(struct net *net)
 {
 	struct lockd_net *ln = net_generic(net, lockd_net_id);
+	struct svc_serv *serv = nlmsvc_rqst->rq_server;
 
 	if (ln->nlmsvc_users) {
 		if (--ln->nlmsvc_users == 0) {
@@ -305,7 +307,7 @@ int lockd_up(struct net *net)
 	 * Check whether we're already up and running.
 	 */
 	if (nlmsvc_rqst) {
-		error = lockd_up_net(nlmsvc_rqst->rq_server, net);
+		error = lockd_up_net(net);
 		goto out;
 	}
 
@@ -376,7 +378,7 @@ out:
 	return error;
 
 err_start:
-	lockd_down_net(serv, net);
+	lockd_down_net(net);
 	goto destroy_and_out;
 }
 EXPORT_SYMBOL_GPL(lockd_up);
@@ -388,7 +390,7 @@ void
 lockd_down(struct net *net)
 {
 	mutex_lock(&nlmsvc_mutex);
-	lockd_down_net(nlmsvc_rqst->rq_server, net);
+	lockd_down_net(net);
 	if (nlmsvc_users) {
 		if (--nlmsvc_users)
 			goto out;

@@ -42,8 +42,6 @@
 #include <linux/in.h>
 #include <linux/inet.h>
 #include <linux/slab.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
 #include <linux/netdevice.h>
 #ifdef CONFIG_NET_CLS_ACT
 #include <net/pkt_sched.h>
@@ -615,12 +613,12 @@ static void copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 	skb_shinfo(new)->gso_segs = skb_shinfo(old)->gso_segs;
 	skb_shinfo(new)->gso_type = skb_shinfo(old)->gso_type;
 }
-EXPORT_SYMBOL_GPL(skb_copy_ubufs);
+
 
 struct sk_buff *skb_copy(const struct sk_buff *skb, gfp_t gfp_mask)
 {
 	int headerlen = skb_headroom(skb);
-	unsigned int size = skb_end_offset(skb) + skb->data_len;
+	unsigned int size = (skb_end_pointer(skb) - skb->head) + skb->data_len;
 	struct sk_buff *n = alloc_skb(size, gfp_mask);
 
 	if (!n)
@@ -693,7 +691,7 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
 {
 	int i;
 	u8 *data;
-	int size = nhead + skb_end_offset(skb) + ntail;
+	int size = nhead + (skb_end_pointer(skb) - skb->head) + ntail;
 	long off;
 	bool fastpath;
 
@@ -2106,13 +2104,14 @@ struct sk_buff *skb_segment(struct sk_buff *skb, netdev_features_t features)
 			if (unlikely(!nskb))
 				goto err;
 
-			hsize = skb_end_offset(nskb);
+			hsize = skb_end_pointer(nskb) - nskb->head;
 			if (skb_cow_head(nskb, doffset + headroom)) {
 				kfree_skb(nskb);
 				goto err;
 			}
 
-			nskb->truesize += skb_end_offset(nskb) - hsize;
+			nskb->truesize += skb_end_pointer(nskb) - nskb->head -
+					  hsize;
 			skb_release_head_state(nskb);
 			__skb_push(nskb, doffset);
 		} else {
@@ -2138,6 +2137,7 @@ struct sk_buff *skb_segment(struct sk_buff *skb, netdev_features_t features)
 		tail = nskb;
 
 		__copy_skb_header(nskb, skb);
+		nskb->mac_len = skb->mac_len;
 
 		
 		if (nskb->ip_summed == CHECKSUM_PARTIAL)
@@ -2147,7 +2147,6 @@ struct sk_buff *skb_segment(struct sk_buff *skb, netdev_features_t features)
 		skb_set_network_header(nskb, skb->mac_len);
 		nskb->transport_header = (nskb->network_header +
 					  skb_network_header_len(skb));
-		skb_reset_mac_len(nskb);
 		skb_copy_from_linear_data(skb, nskb->data, doffset);
 
 		if (fskb != skb_shinfo(skb)->frag_list)
@@ -2167,9 +2166,6 @@ struct sk_buff *skb_segment(struct sk_buff *skb, netdev_features_t features)
 						 skb_put(nskb, hsize), hsize);
 
 		while (pos < offset + len && i < nfrags) {
-			if (unlikely(skb_orphan_frags(skb, GFP_ATOMIC)))
-				goto err;
-
 			*frag = skb_shinfo(skb)->frags[i];
 			__skb_frag_ref(frag);
 			size = skb_frag_size(frag);
@@ -2627,28 +2623,3 @@ void __skb_warn_lro_forwarding(const struct sk_buff *skb)
 			   " while LRO is enabled\n", skb->dev->name);
 }
 EXPORT_SYMBOL(__skb_warn_lro_forwarding);
-
-/**
- * skb_gso_transport_seglen - Return length of individual segments of a gso packet
- *
- * @skb: GSO skb
- *
- * skb_gso_transport_seglen is used to determine the real size of the
- * individual segments, including Layer4 headers (TCP/UDP).
- *
- * The MAC/L2 or network (IP, IPv6) headers are not accounted for.
- */
-unsigned int skb_gso_transport_seglen(const struct sk_buff *skb)
-{
-	const struct skb_shared_info *shinfo = skb_shinfo(skb);
-
-	if (likely(shinfo->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6)))
-		return tcp_hdrlen(skb) + shinfo->gso_size;
-
-	/* UFO sets gso_size to the size of the fragmentation
-	 * payload, i.e. the size of the L4 (UDP) header is already
-	 * accounted for.
-	 */
-	return shinfo->gso_size;
-}
-EXPORT_SYMBOL_GPL(skb_gso_transport_seglen);

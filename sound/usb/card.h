@@ -73,8 +73,7 @@ struct snd_usb_substream {
 	unsigned int syncmaxsize;	
 	unsigned int fill_max: 1;	
 	unsigned int txfr_quirk:1;	
-	unsigned int fmt_type;
-	unsigned int pkt_offset_adj;	/* Bytes to drop from beginning of packets (for non-compliant devices) */	
+	unsigned int fmt_type;		
 
 	unsigned int running: 1;	
 
@@ -87,8 +86,7 @@ struct snd_usb_substream {
 	struct snd_urb_ctx dataurb[MAX_URBS];	
 	struct snd_urb_ctx syncurb[SYNC_URBS];	
 	char *syncbuf;				
-	dma_addr_t sync_dma;
-	unsigned int speed;		/* USB_SPEED_XXX */		
+	dma_addr_t sync_dma;			
 
 	u64 formats;			
 	unsigned int num_formats;		

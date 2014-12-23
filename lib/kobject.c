@@ -419,13 +419,6 @@ struct kobject *kobject_get(struct kobject *kobj)
 	return kobj;
 }
 
-static struct kobject *kobject_get_unless_zero(struct kobject *kobj)
-{
-	if (!kref_get_unless_zero(&kobj->kref))
-		kobj = NULL;
-	return kobj;
-}
-
 static void kobject_cleanup(struct kobject *kobj)
 {
 	struct kobj_type *t = get_ktype(kobj);
@@ -592,7 +585,7 @@ struct kobject *kset_find_obj(struct kset *kset, const char *name)
 
 	list_for_each_entry(k, &kset->list, entry) {
 		if (kobject_name(k) && !strcmp(kobject_name(k), name)) {
-			ret = kobject_get_unless_zero(k);
+			ret = kobject_get(k);
 			break;
 		}
 	}

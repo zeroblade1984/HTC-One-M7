@@ -143,78 +143,6 @@ struct sock_common {
 };
 
 struct cg_proto;
-/**
-  *	struct sock - network layer representation of sockets
-  *	@__sk_common: shared layout with inet_timewait_sock
-  *	@sk_shutdown: mask of %SEND_SHUTDOWN and/or %RCV_SHUTDOWN
-  *	@sk_userlocks: %SO_SNDBUF and %SO_RCVBUF settings
-  *	@sk_lock:	synchronizer
-  *	@sk_rcvbuf: size of receive buffer in bytes
-  *	@sk_wq: sock wait queue and async head
-  *	@sk_dst_cache: destination cache
-  *	@sk_dst_lock: destination cache lock
-  *	@sk_policy: flow policy
-  *	@sk_receive_queue: incoming packets
-  *	@sk_wmem_alloc: transmit queue bytes committed
-  *	@sk_write_queue: Packet sending queue
-  *	@sk_async_wait_queue: DMA copied packets
-  *	@sk_omem_alloc: "o" is "option" or "other"
-  *	@sk_wmem_queued: persistent queue size
-  *	@sk_forward_alloc: space allocated forward
-  *	@sk_allocation: allocation mode
-  *	@sk_sndbuf: size of send buffer in bytes
-  *	@sk_flags: %SO_LINGER (l_onoff), %SO_BROADCAST, %SO_KEEPALIVE,
-  *		   %SO_OOBINLINE settings, %SO_TIMESTAMPING settings
-  *	@sk_no_check: %SO_NO_CHECK setting, wether or not checkup packets
-  *	@sk_route_caps: route capabilities (e.g. %NETIF_F_TSO)
-  *	@sk_route_nocaps: forbidden route capabilities (e.g NETIF_F_GSO_MASK)
-  *	@sk_gso_type: GSO type (e.g. %SKB_GSO_TCPV4)
-  *	@sk_gso_max_size: Maximum GSO segment size to build
-  *	@sk_gso_max_segs: Maximum number of GSO segments
-  *	@sk_lingertime: %SO_LINGER l_linger setting
-  *	@sk_backlog: always used with the per-socket spinlock held
-  *	@sk_callback_lock: used with the callbacks in the end of this struct
-  *	@sk_error_queue: rarely used
-  *	@sk_prot_creator: sk_prot of original sock creator (see ipv6_setsockopt,
-  *			  IPV6_ADDRFORM for instance)
-  *	@sk_err: last error
-  *	@sk_err_soft: errors that don't cause failure but are the cause of a
-  *		      persistent failure not just 'timed out'
-  *	@sk_drops: raw/udp drops counter
-  *	@sk_ack_backlog: current listen backlog
-  *	@sk_max_ack_backlog: listen backlog set in listen()
-  *	@sk_priority: %SO_PRIORITY setting
-  *	@sk_cgrp_prioidx: socket group's priority map index
-  *	@sk_type: socket type (%SOCK_STREAM, etc)
-  *	@sk_protocol: which protocol this socket belongs in this network family
-  *	@sk_peer_pid: &struct pid for this socket's peer
-  *	@sk_peer_cred: %SO_PEERCRED setting
-  *	@sk_rcvlowat: %SO_RCVLOWAT setting
-  *	@sk_rcvtimeo: %SO_RCVTIMEO setting
-  *	@sk_sndtimeo: %SO_SNDTIMEO setting
-  *	@sk_rxhash: flow hash received from netif layer
-  *	@sk_filter: socket filtering instructions
-  *	@sk_protinfo: private area, net family specific, when not using slab
-  *	@sk_timer: sock cleanup timer
-  *	@sk_stamp: time stamp of last packet received
-  *	@sk_socket: Identd and reporting IO signals
-  *	@sk_user_data: RPC layer private data
-  *	@sk_sndmsg_page: cached page for sendmsg
-  *	@sk_sndmsg_off: cached offset for sendmsg
-  *	@sk_peek_off: current peek_offset value
-  *	@sk_send_head: front of stuff to transmit
-  *	@sk_security: used by security modules
-  *	@sk_mark: generic packet mark
-  *	@sk_classid: this socket's cgroup classid
-  *	@sk_cgrp: this socket's cgroup-specific proto data
-  *	@sk_write_pending: a write to stream socket waits to start
-  *	@sk_state_change: callback to indicate change in the state of the sock
-  *	@sk_data_ready: callback to indicate there is data to be processed
-  *	@sk_write_space: callback to indicate there is bf sending space available
-  *	@sk_error_report: callback to indicate errors (e.g. %MSG_ERRQUEUE)
-  *	@sk_backlog_rcv: callback to process the backlog
-  *	@sk_destruct: called at sock freeing time, i.e. when all refcnt == 0
-  */
 struct sock {
 	struct sock_common	__sk_common;
 #define sk_node			__sk_common.skc_node
@@ -278,7 +206,6 @@ struct sock {
 	netdev_features_t	sk_route_nocaps;
 	int			sk_gso_type;
 	unsigned int		sk_gso_max_size;
-	u16			sk_gso_max_segs;
 	int			sk_rcvlowat;
 	unsigned long	        sk_lingertime;
 	struct sk_buff_head	sk_error_queue;
@@ -709,18 +636,6 @@ struct inet_hashinfo;
 struct raw_hashinfo;
 struct module;
 
-/*
- * caches using SLAB_DESTROY_BY_RCU should let .next pointer from nulls nodes
- * un-modified. Special care is taken when initializing object to zero.
- */
-static inline void sk_prot_clear_nulls(struct sock *sk, int size)
-{
-	if (offsetof(struct sock, sk_node.next) != 0)
-		memset(sk, 0, offsetof(struct sock, sk_node.next));
-	memset(&sk->sk_node.pprev, 0,
-	       size - offsetof(struct sock, sk_node.pprev));
-}
-
 struct proto {
 	void			(*close)(struct sock *sk, 
 					long timeout);
@@ -847,7 +762,7 @@ static inline void sk_refcnt_debug_dec(struct sock *sk)
 	       sk->sk_prot->name, sk, atomic_read(&sk->sk_prot->socks));
 }
 
-static inline void sk_refcnt_debug_release(const struct sock *sk)
+inline void sk_refcnt_debug_release(const struct sock *sk)
 {
 	if (atomic_read(&sk->sk_refcnt) != 1)
 		printk(KERN_DEBUG "Destruction of the %s socket %p delayed, refcnt=%d\n",

@@ -38,10 +38,7 @@ struct task_security_struct {
 
 struct inode_security_struct {
 	struct inode *inode;	
-	union {
-		struct list_head list;	/* list of inode_security_struct */
-		struct rcu_head rcu;	/* for freeing the inode_security_struct */
-	};
+	struct list_head list;	
 	u32 task_sid;		
 	u32 sid;		
 	u16 sclass;		

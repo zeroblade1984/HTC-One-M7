@@ -203,7 +203,6 @@ extern void copy_to_user_page(struct vm_area_struct *, struct page *,
 static inline void __flush_icache_all(void)
 {
 	__flush_icache_preferred();
-	dsb();
 }
 
 #define flush_cache_all()		__cpuc_flush_kern_all()
@@ -298,7 +297,9 @@ static inline void flush_anon_page(struct vm_area_struct *vma,
 }
 
 #define ARCH_HAS_FLUSH_KERNEL_DCACHE_PAGE
-extern void flush_kernel_dcache_page(struct page *);
+static inline void flush_kernel_dcache_page(struct page *page)
+{
+}
 
 #define flush_dcache_mmap_lock(mapping) \
 	spin_lock_irq(&(mapping)->tree_lock)

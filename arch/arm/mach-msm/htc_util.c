@@ -133,8 +133,6 @@ static u64 get_iowait_time(int cpu)
 #endif
 
 #ifdef CONFIG_DEBUG_KERNEL
-extern void htc_print_active_wake_locks(int type);
-extern void htc_show_interrupts(void);
 extern void htc_timer_stats_onoff(char onoff);
 extern void htc_timer_stats_show(u16 water_mark);
 #endif
@@ -308,13 +306,13 @@ void htc_pm_monitor_work(struct work_struct *work)
 	printk("[K] [PM] hTC PM Statistic start (%02d-%02d %02d:%02d:%02d) \n",
 		tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
+	htc_show_interrupts();
 	htc_xo_block_clks_count_show();
 	htc_xo_block_clks_count_clear();
 	msm_xo_print_voters();
 	htc_idle_stat_show(msm_htc_util_delay_time);
 	htc_idle_stat_clear();
 #ifdef CONFIG_DEBUG_KERNEL
-	htc_show_interrupts();
 	htc_timer_stats_onoff('0');
 	htc_timer_stats_show(300);
 	htc_timer_stats_onoff('1');

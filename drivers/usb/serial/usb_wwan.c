@@ -102,6 +102,7 @@ static u8* htc_get_wwan_buffer(struct list_head* list_ptr)
 
 void usb_wwan_dtr_rts(struct usb_serial_port *port, int on)
 {
+	struct usb_serial *serial = port->serial;
 	struct usb_wwan_port_private *portdata;
 
 	struct usb_wwan_intf_private *intfdata;
@@ -114,11 +115,12 @@ void usb_wwan_dtr_rts(struct usb_serial_port *port, int on)
 		return;
 
 	portdata = usb_get_serial_port_data(port);
-	/* FIXME: locking */
+	mutex_lock(&serial->disc_mutex);
 	portdata->rts_state = on;
 	portdata->dtr_state = on;
-
-	intfdata->send_setup(port);
+	if (serial->dev)
+		intfdata->send_setup(port);
+	mutex_unlock(&serial->disc_mutex);
 }
 EXPORT_SYMBOL(usb_wwan_dtr_rts);
 
@@ -296,10 +298,8 @@ int usb_wwan_write(struct tty_struct *tty, struct usb_serial_port *port,
 		    usb_pipeendpoint(this_urb->pipe), i);
 
 		err = usb_autopm_get_interface_async(port->serial->interface);
-		if (err < 0) {
-			clear_bit(i, &portdata->out_busy);
+		if (err < 0)
 			break;
-		}
 
 		
 		memcpy(this_urb->transfer_buffer, buf, todo);
@@ -578,26 +578,12 @@ int usb_wwan_open(struct tty_struct *tty, struct usb_serial_port *port)
 }
 EXPORT_SYMBOL(usb_wwan_open);
 
-static void unbusy_queued_urb(struct urb *urb,
-					struct usb_wwan_port_private *portdata)
-{
-	int i;
-
-	for (i = 0; i < N_OUT_URB; i++) {
-		if (urb == portdata->out_urbs[i]) {
-			clear_bit(i, &portdata->out_busy);
-			break;
-		}
-	}
-}
-
 void usb_wwan_close(struct usb_serial_port *port)
 {
 	int i;
 	struct usb_serial *serial = port->serial;
 	struct usb_wwan_port_private *portdata;
 	struct usb_wwan_intf_private *intfdata = port->serial->private;
-	struct urb *urb;
 
 	pr_info("%s", __func__);
 	portdata = usb_get_serial_port_data(port);
@@ -607,14 +593,6 @@ void usb_wwan_close(struct usb_serial_port *port)
 		spin_lock_irq(&intfdata->susp_lock);
 		portdata->opened = 0;
 		spin_unlock_irq(&intfdata->susp_lock);
-
-		for (;;) {
-			urb = usb_get_from_anchor(&portdata->delayed);
-			if (!urb)
-				break;
-			unbusy_queued_urb(urb, portdata);
-			usb_autopm_put_interface_async(serial->interface);
-		}
 
 		for (i = 0; i < N_IN_URB; i++)
 			usb_kill_urb(portdata->in_urbs[i]);
@@ -875,25 +853,39 @@ EXPORT_SYMBOL(usb_wwan_release);
 int usb_wwan_suspend(struct usb_serial *serial, pm_message_t message)
 {
 	struct usb_wwan_intf_private *intfdata = serial->private;
+	int b;
 
 	dbg("%s entered", __func__);
 
-	spin_lock_irq(&intfdata->susp_lock);
 	if (PMSG_IS_AUTO(message)) {
-		if (intfdata->in_flight) {
-			spin_unlock_irq(&intfdata->susp_lock);
+		spin_lock_irq(&intfdata->susp_lock);
+		b = intfdata->in_flight;
+		spin_unlock_irq(&intfdata->susp_lock);
+
+		if (b)
 			return -EBUSY;
-		}
 	}
 
+	spin_lock_irq(&intfdata->susp_lock);
 	intfdata->suspended = 1;
 	spin_unlock_irq(&intfdata->susp_lock);
-
 	stop_read_write_urbs(serial);
 
 	return 0;
 }
 EXPORT_SYMBOL(usb_wwan_suspend);
+
+static void unbusy_queued_urb(struct urb *urb, struct usb_wwan_port_private *portdata)
+{
+	int i;
+
+	for (i = 0; i < N_OUT_URB; i++) {
+		if (urb == portdata->out_urbs[i]) {
+			clear_bit(i, &portdata->out_busy);
+			break;
+		}
+	}
+}
 
 static void play_delayed(struct usb_serial_port *port)
 {

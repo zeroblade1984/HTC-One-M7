@@ -5,7 +5,6 @@ config REMOTEPROC
 	tristate
 	depends on EXPERIMENTAL
 	select FW_CONFIG
-	select VIRTIO
 
 config OMAP_REMOTEPROC
 	tristate "OMAP remoteproc support"
