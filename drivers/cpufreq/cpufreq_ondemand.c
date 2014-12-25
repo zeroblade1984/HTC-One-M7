@@ -137,6 +137,7 @@ static struct dbs_tuners {
 	unsigned int sampling_down_factor;
 	int          powersave_bias;
 	unsigned int io_is_busy;
+	unsigned int shortcut;
 	unsigned int two_phase_freq;
 	unsigned int freq_down_step;
 	unsigned int freq_down_step_barrier;
@@ -150,6 +151,7 @@ static struct dbs_tuners {
 	.ignore_nice = 0,
 	.powersave_bias = 0,
 	.optimal_freq = 0,
+	.shortcut = 0,
 	.two_phase_freq = DEF_TWO_PHASE_FREQUENCY,
 	.freq_down_step = DEF_FREQ_DOWN_STEP,
 	.freq_down_step_barrier = DEF_FREQ_DOWN_STEP_BARRIER,
@@ -312,6 +314,7 @@ static ssize_t show_##file_name						\
 
 show_one(sampling_rate, sampling_rate);
 show_one(io_is_busy, io_is_busy);
+show_one(shortcut, shortcut);
 show_one(up_threshold, up_threshold);
 show_one(up_threshold_multi_core, up_threshold_multi_core);
 show_one(down_differential, down_differential);
@@ -396,6 +399,23 @@ static ssize_t store_io_is_busy(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+static ssize_t store_shortcut(struct kobject *a, struct attribute *b,
+				   const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (dbs_tuners_ins.shortcut != input) {
+		dbs_tuners_ins.shortcut = input;
+	}
+
+	return count;
+}
+
 static ssize_t store_down_differential_multi_core(struct kobject *a,
 			struct attribute *b, const char *buf, size_t count)
 {
@@ -408,7 +428,6 @@ static ssize_t store_down_differential_multi_core(struct kobject *a,
 	dbs_tuners_ins.down_differential_multi_core = input;
 	return count;
 }
-
 
 static ssize_t store_optimal_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
@@ -635,7 +654,6 @@ skip_this_cpu:
 					NULL,
 					input);
 				mutex_unlock(&dbs_info->timer_mutex);
-
 			}
 skip_this_cpu_bypass:
 			unlock_policy_rwsem_write(cpu);
@@ -713,6 +731,7 @@ static ssize_t store_multi_phase_freq_tbl(struct kobject *a, struct attribute *b
 }
 
 show_one(two_phase_freq, two_phase_freq);
+
 static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
 {
@@ -725,7 +744,6 @@ static ssize_t store_two_phase_freq(struct kobject *a, struct attribute *b,
 	if (ret != 1)
 		return -EINVAL;
 
-	
 	dbs_info = &per_cpu(od_cpu_dbs_info, 0);
 	policy = dbs_info->cur_policy;
 	if (policy) {
@@ -748,6 +766,7 @@ static ssize_t store_freq_down_step(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
+
 	dbs_tuners_ins.freq_down_step = input;
 	return count;
 }
@@ -767,6 +786,7 @@ static ssize_t store_freq_down_step_barrier(struct kobject *a, struct attribute 
 
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
+define_one_global_rw(shortcut);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_differential);
 define_one_global_rw(sampling_down_factor);
@@ -791,6 +811,7 @@ static struct attribute *dbs_attributes[] = {
 	&ignore_nice_load.attr,
 	&powersave_bias.attr,
 	&io_is_busy.attr,
+	&shortcut.attr,
 	&up_threshold_multi_core.attr,
 	&down_differential_multi_core.attr,
 	&optimal_freq.attr,
@@ -995,7 +1016,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	struct cpufreq_policy *policy;
 	unsigned int j, max_cur_load = 0, prev_load = 0;
 	struct cpu_dbs_info_s *j_dbs_info;
-	unsigned int up_threshold = 85;
+	unsigned int up_threshold = 90;
 
 	this_dbs_info->freq_lo = 0;
 	policy = this_dbs_info->cur_policy;
@@ -1081,7 +1102,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 	}
 
-	up_threshold = up_threshold_level[1];
+	if (dbs_tuners_ins.shortcut)
+		up_threshold = dbs_tuners_ins.up_threshold;
+	else
+		up_threshold = up_threshold_level[1];
 
 	if (max_load_freq > up_threshold * policy->cur) {
 		unsigned int freq_next;
@@ -1148,7 +1172,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		freq_next = max_load_freq /
 				(dbs_tuners_ins.up_threshold -
 				 dbs_tuners_ins.down_differential);
-
 		
 		this_dbs_info->rate_mult = 1;
 
@@ -1172,6 +1195,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (dbs_tuners_ins.freq_down_step) {
 			unsigned int new_freq_next = freq_next;
 			unsigned int base_freq = (108000 * dbs_tuners_ins.freq_down_step);
+
 			if ((policy->cur - freq_next) > base_freq) {
 				new_freq_next = policy->cur - base_freq;
 			}
@@ -1190,7 +1214,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 
 		__cpufreq_driver_target(policy, freq_next, CPUFREQ_RELATION_L);
-
 	}
 }
 
@@ -1261,7 +1284,6 @@ static int should_io_be_busy(void)
 #endif
 	return 0;
 }
-
 
 static void dbs_input_event(struct input_handle *handle, unsigned int type,
 		unsigned int code, int value)
@@ -1371,7 +1393,6 @@ static void dbs_input_disconnect(struct input_handle *handle)
 }
 
 static const struct input_device_id dbs_ids[] = {
-	
 	{
 		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
 			INPUT_DEVICE_ID_MATCH_ABSBIT,
@@ -1484,6 +1505,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 
 		mutex_lock(&dbs_mutex);
 		dbs_enable--;
+
 		this_dbs_info->cur_policy = NULL;
 		if (!cpu)
 			input_unregister_handler(&dbs_input_handler);
@@ -1603,7 +1625,6 @@ static int __init cpufreq_gov_dbs_init(void)
 		}
 		mutex_init(&this_dbs_info->timer_mutex);
 	}
-
 	return cpufreq_register_governor(&cpufreq_gov_ondemand);
 }
 
@@ -1623,7 +1644,6 @@ static void __exit cpufreq_gov_dbs_exit(void)
 		mutex_destroy(&this_dbs_info->timer_mutex);
 	}
 }
-
 
 MODULE_AUTHOR("Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>");
 MODULE_AUTHOR("Alexey Starikovskiy <alexey.y.starikovskiy@intel.com>");
