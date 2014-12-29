@@ -302,7 +302,7 @@ static struct acpu_level tbl_PVS2_1700MHz[] __initdata = {
 	{ 1, {  1890000, HFPLL, 1, 0x46 }, L2(14), 1212500 },
 	{ 1, { 	1998000, HFPLL, 1, 0x4A }, L2(14), 1262500 },
 	{ 1, { 	2052000, HFPLL, 1, 0x4C }, L2(14), 1287500 },
-#endif	{ 1, { 	2052000, HFPLL, 1, 0x4C }, L2(14), 1287500 },
+#endif
 	{ 0, { 0 } }
 };
 
