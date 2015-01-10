@@ -85,7 +85,7 @@ static struct alarm batt_charger_ctrl_alarm;
 static struct work_struct batt_charger_ctrl_work;
 struct workqueue_struct *batt_charger_ctrl_wq;
 static unsigned int charger_ctrl_stat;
-unsigned int phone_call_stat;
+static unsigned int phone_call_stat;
 
 static int test_power_monitor;
 

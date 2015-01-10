@@ -2928,7 +2928,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 #ifdef CONFIG_LOGO2MENU
 								if (!report_htc_logo_area(last_touch_position_x,last_touch_position_y)) {
 #endif
-								if (scr_suspended && phone_call_stat == 1) {
+								if (scr_suspended && in_phone_call == 1) {
 									finger_data[i][0] = -10;
 									finger_data[i][1] = -10;
 								}

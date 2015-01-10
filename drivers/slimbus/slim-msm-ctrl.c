@@ -25,6 +25,10 @@
 #include <linux/of.h>
 #include <linux/of_slimbus.h>
 #include <mach/sps.h>
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
+#include <linux/synaptics_i2c_rmi.h>
+int in_phone_call = 0;
+#endif
 
 #define SLIM_RX_MSGQ_BUF_LEN	40
 
@@ -1392,6 +1396,9 @@ send_capability:
 			gen_ack = true;
 			pr_info("[AUD] SAT connect MC:0x%x,LA:0x%x", txn.mc,
 					sat->satcl.laddr);
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
+			in_phone_call = 1;
+#endif
 			ret = msm_xfer_msg(&dev->ctrl, &txn);
 			break;
 		case SLIM_USR_MC_DISCONNECT_PORT:
@@ -1405,6 +1412,9 @@ send_capability:
 			txn.wbuf = wbuf;
 			gen_ack = true;
 			pr_info("[AUD] SAT disconnect LA:0x%x", sat->satcl.laddr);
+#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_WAKE_GESTURES
+			in_phone_call = 0;
+#endif
 			ret = msm_xfer_msg(&dev->ctrl, &txn);
 		default:
 			break;
