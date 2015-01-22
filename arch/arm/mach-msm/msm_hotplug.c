@@ -34,7 +34,6 @@
 #include <linux/tick.h>
 
 #define MSM_HOTPLUG			"msm_hotplug"
-#define HOTPLUG_ENABLED			1
 #define DEFAULT_UPDATE_RATE		HZ / 10
 #define START_DELAY			HZ * 20
 #define MIN_INPUT_INTERVAL		150 * 1000L
@@ -60,7 +59,6 @@ do { 				\
 } while (0)
 
 static struct cpu_hotplug {
-	unsigned int msm_enabled;
 #if defined(CONFIG_LCD_NOTIFY) || defined(CONFIG_POWERSUSPEND) || defined(CONFIG_HAS_EARLYSUSPEND)
 	unsigned int suspended;
 	unsigned int suspend_defer_time;
@@ -88,7 +86,6 @@ static struct cpu_hotplug {
 #endif
 #endif
 } hotplug = {
-	.msm_enabled = HOTPLUG_ENABLED,
 	.min_cpus_online = DEFAULT_MIN_CPUS_ONLINE,
 	.max_cpus_online = DEFAULT_MAX_CPUS_ONLINE,
 #if defined(CONFIG_LCD_NOTIFY) || defined(CONFIG_POWERSUSPEND) || defined(CONFIG_HAS_EARLYSUSPEND)
@@ -401,9 +398,6 @@ static void online_cpu(unsigned int target)
 {
 	unsigned int online_cpus;
 
-	if (!hotplug.msm_enabled)
-		return;
-
 	online_cpus = num_online_cpus();
 
 	/* 
@@ -422,9 +416,6 @@ static void offline_cpu(unsigned int target)
 {
 	unsigned int online_cpus;
 	u64 now;
-
-	if (!hotplug.msm_enabled)
-		return;
 
 	online_cpus = num_online_cpus();
 
@@ -529,9 +520,6 @@ static void msm_hotplug_suspend(struct work_struct *work)
 {
 	int cpu;
 
-	if (!hotplug.msm_enabled)
-		return;
-
 	mutex_lock(&hotplug.msm_hotplug_mutex);
 	hotplug.suspended = 1;
 	hotplug.min_cpus_online_res = hotplug.min_cpus_online;
@@ -559,9 +547,6 @@ static void msm_hotplug_suspend(struct work_struct *work)
 static void __ref msm_hotplug_resume(struct work_struct *work)
 {
 	int cpu, required_reschedule = 0, required_wakeup = 0;
-
-	if (!hotplug.msm_enabled)
-		return;
 
 	if (hotplug.suspended) {
 		mutex_lock(&hotplug.msm_hotplug_mutex);
@@ -828,7 +813,6 @@ static int __ref msm_hotplug_start(void)
 err_dev:
 	destroy_workqueue(hotplug_wq);
 err_out:
-	hotplug.msm_enabled = 0;
 	return ret;
 }
 
@@ -926,37 +910,6 @@ err:
 }
 
 /************************** sysfs interface ************************/
-
-static ssize_t show_enable_hotplug(struct device *dev,
-				   struct device_attribute *msm_hotplug_attrs,
-				   char *buf)
-{
-	return sprintf(buf, "%u\n", hotplug.msm_enabled);
-}
-
-static ssize_t store_enable_hotplug(struct device *dev,
-				    struct device_attribute *msm_hotplug_attrs,
-				    const char *buf, size_t count)
-{
-	int ret;
-	unsigned int val;
-
-	ret = sscanf(buf, "%u", &val);
-	if (ret != 1 || val < 0 || val > 1)
-		return -EINVAL;
-
-	if (val == hotplug.msm_enabled)
-		return count;
-
-	hotplug.msm_enabled = val;
-
-	if (hotplug.msm_enabled)
-		ret = msm_hotplug_start();
-	else
-		msm_hotplug_stop();
-
-	return count;
-}
 
 static ssize_t show_down_lock_duration(struct device *dev,
 				       struct device_attribute
@@ -1099,16 +1052,13 @@ static ssize_t store_history_size(struct device *dev,
 	if (ret != 1 || val < 1 || val > 20)
 		return -EINVAL;
 
-	if (hotplug.msm_enabled) {
-		flush_workqueue(hotplug_wq);
-		cancel_delayed_work_sync(&hotplug_work);
-		memset(stats.load_hist, 0, sizeof(stats.load_hist));
-	}
+	flush_workqueue(hotplug_wq);
+	cancel_delayed_work_sync(&hotplug_work);
+	memset(stats.load_hist, 0, sizeof(stats.load_hist));
 
 	stats.hist_size = val;
 
-	if (hotplug.msm_enabled)
-		reschedule_hotplug_work();
+	reschedule_hotplug_work();
 
 	return count;
 }
@@ -1313,7 +1263,6 @@ static ssize_t show_current_load(struct device *dev,
 	return sprintf(buf, "%u\n", stats.cur_avg_load);
 }
 
-static DEVICE_ATTR(msm_enabled, 644, show_enable_hotplug, store_enable_hotplug);
 static DEVICE_ATTR(down_lock_duration, 644, show_down_lock_duration,
 		   store_down_lock_duration);
 static DEVICE_ATTR(boost_lock_duration, 644, show_boost_lock_duration,
@@ -1339,7 +1288,6 @@ static DEVICE_ATTR(io_is_busy, 644, show_io_is_busy, store_io_is_busy);
 static DEVICE_ATTR(current_load, 444, show_current_load, NULL);
 
 static struct attribute *msm_hotplug_attrs[] = {
-	&dev_attr_msm_enabled.attr,
 	&dev_attr_down_lock_duration.attr,
 	&dev_attr_boost_lock_duration.attr,
 	&dev_attr_update_rates.attr,
@@ -1382,11 +1330,9 @@ static int __devinit msm_hotplug_probe(struct platform_device *pdev)
 		goto err_dev;
 	}
 
-	if (hotplug.msm_enabled) {
-		ret = msm_hotplug_start();
-		if (ret != 0)
-			goto err_dev;
-	}
+	ret = msm_hotplug_start();
+	if (ret != 0)
+		goto err_dev;
 
 	return ret;
 err_dev:
@@ -1401,9 +1347,6 @@ static struct platform_device msm_hotplug_device = {
 
 static int msm_hotplug_remove(struct platform_device *pdev)
 {
-	if (hotplug.msm_enabled)
-		msm_hotplug_stop();
-
 	return 0;
 }
 
