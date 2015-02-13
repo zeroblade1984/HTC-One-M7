@@ -205,8 +205,8 @@ static int kgsl_pwrctrl_thermal_pwrlevel_store(struct device *dev,
 
 	mutex_lock(&device->mutex);
 
-	if (level > pwr->num_pwrlevels - 2)
-		level = pwr->num_pwrlevels - 2;
+	if (level > pwr->num_pwrlevels - 1)
+		level = pwr->num_pwrlevels - 1;
 
 	pwr->thermal_pwrlevel = level;
 
@@ -303,8 +303,8 @@ static int kgsl_pwrctrl_min_pwrlevel_store(struct device *dev,
 		return ret;
 
 	mutex_lock(&device->mutex);
-	if (level > pwr->num_pwrlevels - 2)
-		level = pwr->num_pwrlevels - 2;
+	if (level > pwr->num_pwrlevels - 1)
+		level = pwr->num_pwrlevels - 1;
 
 	
 	if (level < pwr->max_pwrlevel)
@@ -981,7 +981,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 
 	pwr->max_pwrlevel = 0;
 	pwr->min_pwrlevel = pdata->num_levels - 2;
-	pwr->thermal_pwrlevel = 0;
+	pwr->thermal_pwrlevel = KGSL_PWRLEVEL_TURBO;
 
 	pwr->active_pwrlevel = pdata->init_level;
 	pwr->default_pwrlevel = pdata->init_level;
