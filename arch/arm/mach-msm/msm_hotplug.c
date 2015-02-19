@@ -35,7 +35,7 @@
 
 #define MSM_HOTPLUG			"msm_hotplug"
 #define DEFAULT_UPDATE_RATE		HZ / 10
-#define START_DELAY			HZ * 20
+#define START_DELAY			HZ * 10
 #define MIN_INPUT_INTERVAL		150 * 1000L
 #define DEFAULT_HISTORY_SIZE		10
 #define DEFAULT_DOWN_LOCK_DUR		1000
