@@ -3931,7 +3931,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #ifdef DHD_ENABLE_LPC
 	uint32 lpc = 1;
 #endif 
-	uint power_mode = PM_FAST;
+	uint power_mode;
 	uint32 dongle_align = DHD_SDALIGN;
 	uint32 glom = CUSTOM_GLOM_SETTING;
 #ifdef CUSTOMER_HW_ONE
@@ -7151,15 +7151,36 @@ void htsf_update(dhd_info_t *dhd, void *data)
 #endif 
 
 extern void wl_cfg80211_dhd_chk_link(void);
+
+#ifdef CONFIG_BCMDHD_WIFI_PM
+int dtim_awake = 0;
+module_param(dtim_awake, int, 0660);
+
+int dtim_suspended = 0;
+module_param(dtim_suspended, int, 0660);
+
+int wifi_pm_awake = PM_FAST;
+module_param(wifi_pm_awake, int, 0660);
+
+int wifi_pm_suspended = PM_MAX;
+module_param(wifi_pm_suspended, int, 0660);
+#endif
+
 #ifndef CUSTOMER_HW_ONE
 static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 {
-#ifndef SUPPORT_PM2_ONLY
+#ifdef CONFIG_BCMDHD_WIFI_PM
+	int power_mode = wifi_pm_awake;
+#else
 	int power_mode = PM_MAX;
-#endif 
+#endif
 	
 	char iovbuf[32];
+#ifdef CONFIG_BCMDHD_WIFI_PM
+	int bcn_li_dtim = dtim_awake;
+#else
 	int bcn_li_dtim = 0; 
+#endif
 #ifndef ENABLE_FW_ROAM_SUSPEND
 	uint roamvar = 1;
 #endif 
@@ -7176,7 +7197,9 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 #ifdef PKT_FILTER_SUPPORT
 				dhd->early_suspended = 1;
 #endif
-				
+#ifdef CONFIG_BCMDHD_WIFI_PM
+				power_mode = wifi_pm_suspended;
+#endif				
 				DHD_ERROR(("%s: force extra Suspend setting \n", __FUNCTION__));
 
 #ifndef SUPPORT_PM2_ONLY
@@ -7188,7 +7211,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				dhd_enable_packet_filter(1, dhd);
 
 
-				bcn_li_dtim = dhd_get_suspend_bcn_li_dtim(dhd);
+				bcn_li_dtim = dtim_suspended;
 				bcm_mkiovar("bcn_li_dtim", (char *)&bcn_li_dtim,
 					4, iovbuf, sizeof(iovbuf));
 				if (dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf),

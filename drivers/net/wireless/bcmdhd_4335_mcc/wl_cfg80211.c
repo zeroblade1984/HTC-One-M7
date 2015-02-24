@@ -4542,9 +4542,8 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	s32 err = 0;
 	struct wl_priv *wl = wiphy_priv(wiphy);
 	struct net_info *_net_info = wl_get_netinfo_by_netdev(wl, dev);
-#if !defined(SUPPORT_PM2_ONLY)
 	dhd_pub_t *dhd = (dhd_pub_t *)(wl->pub);
-#endif 
+ 
 	RETURN_EIO_IF_NOT_UP(wl);
 	WL_DBG(("Enter\n"));
 #if defined(WL_ENABLE_P2P_IF)
@@ -4564,12 +4563,9 @@ wl_cfg80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		wl->pm_enable_work_on = false;
 	}
 
-#if !defined(SUPPORT_PM2_ONLY)
 	
 	pm = enabled ? ((dhd->in_suspend) ? PM_MAX : PM_FAST) : PM_OFF;
-#else
-	pm = enabled ? PM_FAST : PM_OFF;
-#endif 
+ 
 	if (_net_info->pm_block) {
 		WL_ERR(("%s:Do not enable the power save for pm_block %d\n",
 			dev->name, _net_info->pm_block));
