@@ -132,7 +132,7 @@ void kgsl_hang_check(struct work_struct *work)
 			adreno_dump_and_exec_ft(device);
 
 		mod_timer(&device->hang_timer,
-			(jiffies + msecs_to_jiffies(KGSL_TIMEOUT_PART)));
+			(jiffies + msecs_to_jiffies(KGSL_TIMEOUT_HANG_DETECT)));
 	}
 
 	mutex_unlock(&device->mutex);
@@ -823,6 +823,10 @@ static void kgsl_destroy_process_private(struct kref *kref)
 void
 kgsl_process_private_put(struct kgsl_process_private *private)
 {
+	if (!private) {
+		KGSL_CORE_ERR("Cannot destroy null process private\n");
+		return;
+	}
 	mutex_lock(&kgsl_driver.process_mutex);
 
 	if (!kref_put(&private->refcount, kgsl_destroy_process_private))

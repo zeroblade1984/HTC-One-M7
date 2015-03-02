@@ -3377,13 +3377,13 @@ printf("Read PCBID = %x\n", system_rev);
 	}
 #endif
 
-#ifdef CONFIG_MACH_DUMMY
+#ifdef CONFIG_MACH_TC2
 	if (system_rev >= PVT){
 		strcpy(nvram_path, "/system/etc/calibration.gpio4");
 	}
 #endif
 
-#ifdef CONFIG_MACH_DUMMY
+#ifdef CONFIG_MACH_M4_UL
 	strcpy(nvram_path, "/system/etc/calibration.gpio4");
 #endif
 
@@ -3699,6 +3699,10 @@ dhd_bus_start(dhd_pub_t *dhdp)
 
 	DHD_TRACE(("Enter %s:\n", __FUNCTION__));
 
+#ifdef CUSTOMER_HW_ONE
+	priv_dhdp = dhdp;
+#endif
+
 #ifdef DHDTHREAD
 	if (dhd->threads_only)
 		dhd_os_sdlock(dhdp);
@@ -3805,10 +3809,6 @@ dhd_bus_start(dhd_pub_t *dhdp)
 		return ret;
 
 	dhd_process_cid_mac(dhdp, FALSE);
-#ifdef CUSTOMER_HW_ONE
-	priv_dhdp = dhdp;
-#endif
-
 
 #ifdef ARP_OFFLOAD_SUPPORT
 	if (dhd->pend_ipaddr) {
@@ -7681,6 +7681,12 @@ int dhd_set_keepalive(int value)
 	int ret = 0;
 
     dhd_pub_t *dhd = priv_dhdp;
+
+    if (!dhd) {
+        printf("dhd is not attached\n");
+        return -1;
+    }
+
 #ifdef HTC_KlocWork
 	memset(&keep_alive_pkt, 0, sizeof(keep_alive_pkt));
 #endif

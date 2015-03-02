@@ -694,7 +694,7 @@ static void volume_ramp_func(struct work_struct *work)
 					mutex_unlock(&rt5501_query.actionlock);
 					return;
 				}
-				msleep(1);
+				mdelay(1);
 				rt5501_write_reg(1,val);
 				val++;
 			}

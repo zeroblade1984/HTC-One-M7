@@ -1297,15 +1297,24 @@ __releases(&gcwq->lock)
 __acquires(&gcwq->lock)
 {
 	struct cpu_workqueue_struct *cwq = get_work_cwq(work);
-	struct global_cwq *gcwq = cwq->gcwq;
-	struct hlist_head *bwh = busy_worker_head(gcwq, work);
-	bool cpu_intensive = cwq->wq->flags & WQ_CPU_INTENSIVE;
+	struct global_cwq *gcwq;
+	struct hlist_head *bwh;
+	bool cpu_intensive;
 	work_func_t f = work->func;
 	int work_color;
 	struct worker *collision;
 #ifdef CONFIG_LOCKDEP
 	struct lockdep_map lockdep_map = work->lockdep_map;
 #endif
+
+	if (unlikely(!cwq))
+	{
+		return;
+	}
+	gcwq = cwq->gcwq;
+	bwh = busy_worker_head(gcwq, work);
+	cpu_intensive = cwq->wq->flags & WQ_CPU_INTENSIVE;
+
 	collision = __find_worker_executing_work(gcwq, bwh, work);
 	if (unlikely(collision)) {
 		move_linked_works(work, &collision->scheduled, NULL);
@@ -1327,9 +1336,13 @@ __acquires(&gcwq->lock)
 		struct work_struct *nwork = list_first_entry(&gcwq->worklist,
 						struct work_struct, entry);
 
-		if (!list_empty(&gcwq->worklist) &&
-		    get_work_cwq(nwork)->wq->flags & WQ_HIGHPRI)
-			wake_up_worker(gcwq);
+		if (!list_empty(&gcwq->worklist) && (get_work_cwq(nwork) != NULL))
+		{
+			if(get_work_cwq(nwork)->wq->flags & WQ_HIGHPRI)
+				wake_up_worker(gcwq);
+			else
+				gcwq->flags &= ~GCWQ_HIGHPRI_PENDING;
+		}
 		else
 			gcwq->flags &= ~GCWQ_HIGHPRI_PENDING;
 	}
