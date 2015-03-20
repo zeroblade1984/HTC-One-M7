@@ -1292,7 +1292,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			freq_next = new_freq_next;
 		}
 
-		__cpufreq_driver_target(policy, freq_next, CPUFREQ_RELATION_L);
+		__cpufreq_driver_target(policy, freq_next, CPUFREQ_RELATION_C);
 	}
 }
 
