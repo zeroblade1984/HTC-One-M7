@@ -2370,6 +2370,21 @@ static ssize_t phone_status_store(struct device *dev,
 
 
         D("[PS][cm3629] %s: phone_status = %d\n", __func__, phone_status);
+
+	if (phone_status == 7) {
+		input_report_abs(lpi->ps_input_dev, ABS_DISTANCE, -1);
+		input_report_abs(lpi->ps_input_dev, ABS_DISTANCE, 7);
+		input_sync(lpi->ps_input_dev);
+		D("[PS][cm3629] %s: META for Proximity\n", __func__);
+		return count;
+	} else if (phone_status == 8) {
+		input_report_abs(lpi->ls_input_dev, ABS_MISC, -1);
+		input_report_abs(lpi->ls_input_dev, ABS_MISC, -2);
+		input_sync(lpi->ls_input_dev);
+		D("[LS][cm3629] %s: META for Lightsensor\n", __func__);
+		return count;
+	}
+
 	if (phone_status == 0)
 		oncall = 0;
 	else

@@ -360,6 +360,7 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 	unsigned int len = 0;
 	char *addr;
 	void __user *argp = (void __user *)arg;
+	char *buf;
 
 	switch (cmd) {
 	case TPA9887_WRITE_CONFIG:
@@ -379,7 +380,21 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 				__func__, tfa9887_step_en, tfa9887_step);
 		tfa9887_step = 0;
 		tfa9887_step_en = 2;
-		tfa9887_i2c_write(addr+1, len -1);
+
+		buf = kmalloc(len, GFP_KERNEL);
+		if (!buf) {
+			pr_err("%s len %u NO mem\n", __func__, len);
+			return -ENOMEM;
+		}
+		if (copy_from_user(buf, addr, len)) {
+			kfree(buf);
+			pr_err("%s addr %x error\n", __func__, (unsigned int)addr);
+			return -EFAULT;
+		}
+
+		tfa9887_i2c_write(buf+1, len -1);
+		kfree(buf);
+
 		tfa9887_step_en = 0;
 		tfa9887_step = -1;
 
@@ -401,7 +416,21 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 				__func__, tfa9887_step_en, tfa9887_step);
 		tfa9887_step = 0;
 		tfa9887_step_en = 2;
-		tfa9887_i2c_read(addr, len);
+
+		buf = kmalloc(len, GFP_KERNEL);
+		if (!buf) {
+			pr_err("%s len %u NO mem\n", __func__, len);
+			return -ENOMEM;
+		}
+
+		tfa9887_i2c_read(buf, len);
+		if (copy_to_user(addr, buf, len)) {
+			kfree(buf);
+			pr_err("%s addr %x error\n", __func__, (unsigned int)addr);
+			return -EFAULT;
+		}
+		kfree(buf);
+
 		tfa9887_step_en = 0;
 		tfa9887_step = -1;
 
@@ -428,7 +457,21 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 				__func__, tfa9887l_step_en, tfa9887l_step);
 		tfa9887l_step = 0;
 		tfa9887l_step_en = 2;
-		tfa9887_l_write(addr+1, len -1);
+
+		buf = kmalloc(len, GFP_KERNEL);
+		if (!buf) {
+			pr_err("%s len %u NO mem\n", __func__, len);
+			return -ENOMEM;
+		}
+		if (copy_from_user(buf, addr, len)) {
+			kfree(buf);
+			pr_err("%s addr %x error\n", __func__, (unsigned int)addr);
+			return -EFAULT;
+		}
+
+		tfa9887_l_write(buf+1, len -1);
+		kfree(buf);
+
 		tfa9887l_step_en = 0;
 		tfa9887l_step = -1;
 		break;
@@ -448,7 +491,22 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 				__func__, tfa9887l_step_en, tfa9887l_step);
 		tfa9887l_step = 0;
 		tfa9887l_step_en = 2;
-		tfa9887_l_read(addr, len);
+
+
+		buf = kmalloc(len, GFP_KERNEL);
+		if (!buf) {
+			pr_err("%s len %u NO mem\n", __func__, len);
+			return -ENOMEM;
+		}
+
+		tfa9887_l_read(buf, len);
+		if (copy_to_user(addr, buf, len)) {
+			kfree(buf);
+			pr_err("%s addr %x NO mem\n", __func__, (unsigned int)addr);
+			return -EFAULT;
+		}
+		kfree(buf);
+
 		tfa9887l_step_en = 0;
 		tfa9887l_step = -1;
 

@@ -1631,7 +1631,7 @@ static void batt_level_adjust(unsigned long time_since_last_update_ms)
 	if (!prev_batt_info_rep->charging_enabled &&
 			!((prev_batt_info_rep->charging_source == 0) &&
 				htc_batt_info.rep.charging_source > 0)) {
-		if (time_accumulated_level_change < DISCHG_UPDATE_PERIOD_MS) {
+		if ((time_accumulated_level_change < DISCHG_UPDATE_PERIOD_MS) && !first) {
 			
 			BATT_LOG("%s: total_time since last batt level update = %lu ms.",
 			__func__, time_accumulated_level_change);
@@ -1844,11 +1844,14 @@ static void batt_level_adjust(unsigned long time_since_last_update_ms)
 		allow_drop_one_percent_flag = false;
 	}
 
-	htc_batt_store_battery_ui_soc(htc_batt_info.rep.level);
 
 	
 	if (first)
 		htc_batt_get_battery_ui_soc(&htc_batt_info.rep.level);
+
+         htc_batt_store_battery_ui_soc(htc_batt_info.rep.level);
+
+
 
 	if (htc_batt_info.rep.level != prev_level)
 		time_accumulated_level_change = 0;
